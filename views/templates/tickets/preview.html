@@ -1,0 +1,64 @@
+<div class="report-preview" data-report-title="Reporte #{{ ticket.id }}">
+    <div class="report-heading">
+        <span class="report-heading-icon"><i class="bi bi-clipboard2-pulse"></i></span>
+        <div class="report-heading-copy">
+            <p class="eyebrow">Mesa de ayuda · Área de TI</p>
+            <h2>{{ ticket.title or ticket.subject or 'Sin asunto' }}</h2>
+            <div class="report-badges">
+                <span class="report-code">TI-{{ '%05d'|format(ticket.id) }}</span>
+                <span class="report-code"><i class="bi bi-{{ 'mic' if ticket.channel == 'voice' else 'keyboard' }}"></i> {{ 'Por voz' if ticket.channel == 'voice' else 'Formulario' }}</span>
+                <span class="report-code">{{ 'Pedido' if ticket.request_kind == 'request' else 'Incidencia' }}</span>
+                <span class="status-pill status-{{ ticket.status }}">{{ translate_ticket_status(ticket.status) }}</span>
+                <span class="priority-pill priority-{{ ticket.priority }}">{{ translate_ticket_priority(ticket.priority) }}</span>
+                <span class="report-date"><i class="bi bi-calendar3"></i> {{ format_datetime(ticket.created_at, '%d/%m/%Y %H:%M') }}</span>
+            </div>
+        </div>
+    </div>
+    <div class="report-layout">
+        <div class="report-main-column">
+            <section class="report-section">
+                <h3><span><i class="bi bi-chat-left-text"></i></span> Descripción del reporte</h3>
+                <p class="report-description">{{ ticket.description or 'Sin descripción registrada.' }}</p>
+            </section>
+            <section class="report-section report-attention attention-{{ ticket.status }}">
+                <h3><span><i class="bi bi-{{ 'check2-circle' if ticket.status in ['resolved', 'closed'] else 'clock-history' }}"></i></span> Estado de la atención</h3>
+                <div class="attention-copy">
+                    <strong>{{ translate_ticket_status(ticket.status) }}</strong>
+                    <p>{% if ticket.status == 'open' %}El reporte está pendiente de atención por el equipo de TI.{% elif ticket.status == 'in_progress' %}El equipo de TI está trabajando en este reporte.{% elif ticket.status == 'resolved' %}El reporte está marcado como resuelto. Consulta los comentarios para ver el seguimiento registrado.{% else %}La atención de este reporte ha finalizado. Consulta el seguimiento registrado.{% endif %}</p>
+                </div>
+            </section>
+            <section class="report-section">
+                <h3><span><i class="bi bi-chat-square-dots"></i></span> Seguimiento y comentarios <b class="section-count">{{ comments|length }}</b></h3>
+                <div class="report-timeline">
+                    {% for comment in comments %}
+                    <article class="timeline-entry">
+                        <span class="timeline-avatar">{{ (comment.user_name or 'U')[:1]|upper }}</span>
+                        <div class="timeline-content">
+                            <div class="timeline-meta"><strong>{{ comment.user_name or 'Usuario' }}</strong><time>{{ format_datetime(comment.created_at, '%d/%m/%Y %H:%M') }}</time></div>
+                            <p>{{ comment.comment or comment.text }}</p>
+                        </div>
+                    </article>
+                    {% else %}
+                    <div class="report-empty"><i class="bi bi-chat-left"></i><p>Aún no hay comentarios en este reporte.</p></div>
+                    {% endfor %}
+                </div>
+            </section>
+        </div>
+        <aside class="report-side-column">
+            <section class="report-section">
+                <h3><span><i class="bi bi-info-circle"></i></span> Información</h3>
+                <dl class="report-information">
+                    <div><dt>Solicitante</dt><dd><i class="bi bi-person-circle"></i> {{ ticket.created_by_name or 'No disponible' }}</dd></div>
+                    <div><dt>Responsable</dt><dd><i class="bi bi-person-badge"></i> {{ ticket.assigned_to_name or 'Sin asignar' }}</dd></div>
+                    <div><dt>Área solicitante</dt><dd><i class="bi bi-building"></i> {{ ticket.origin_area_name or 'TI' }}</dd></div>
+                    <div><dt>Área responsable</dt><dd><i class="bi bi-cpu"></i> {{ ticket.destination_area_name or 'Tecnología de la información' }}</dd></div>
+                    <div><dt>Fecha de creación</dt><dd>{{ format_datetime(ticket.created_at, '%d/%m/%Y %H:%M') }}</dd></div>
+                    {% if ticket.asset_name %}<div><dt>Activo relacionado</dt><dd>{{ ticket.asset_name }}</dd></div>{% endif %}
+                </dl>
+            </section>
+            {% if can_work_tickets %}
+            <a class="btn btn-primary report-edit" href="{{ url_for('edit_ticket', ticket_id=ticket.id) }}"><i class="bi bi-pencil-square"></i> Gestionar reporte</a>
+            {% endif %}
+        </aside>
+    </div>
+</div>

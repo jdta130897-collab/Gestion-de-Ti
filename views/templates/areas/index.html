@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block title %}Áreas de la organización{% endblock %}
+{% block content %}
+<header class="page-head"><p class="eyebrow">Administración general</p><h1>Áreas de la organización</h1><p class="text-muted">Crea las áreas que enviarán pedidos e incidencias al equipo de TI.</p></header>
+<div class="alert alert-info"><i class="bi bi-diagram-3"></i> Áreas solicitantes → mesa de ayuda de TI → atención y resolución. Asigna a cada usuario su área desde <a href="{{ url_for('list_users') }}">Usuarios</a>.</div>
+<section class="card mb-4"><div class="card-body">
+    <h2 class="h5 mb-3">Nueva área</h2>
+    <form method="post" class="row g-3 align-items-end">
+        <div class="col-md-3"><label for="area-code" class="form-label">Código</label><input id="area-code" name="code" class="form-control" placeholder="Ej. RRHH" minlength="2" maxlength="20" pattern="[A-Za-z0-9_-]{2,20}" required></div>
+        <div class="col-md-6"><label for="area-name" class="form-label">Nombre del área</label><input id="area-name" name="name" class="form-control" placeholder="Ej. Recursos humanos" minlength="3" maxlength="100" required></div>
+        <div class="col-md-3"><button class="btn btn-primary" type="submit"><i class="bi bi-plus-lg"></i> Crear área</button></div>
+    </form>
+</div></section>
+<div class="table-responsive"><table class="table"><thead><tr><th>Área</th><th>Función</th><th>Usuarios</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>
+{% for area in areas %}<tr>
+    <td><strong>{{ area.name }}</strong><br><small class="text-muted">{{ area.code }}</small></td>
+    <td>{{ 'Atención de pedidos y reportes' if area.code == 'TI' else 'Área solicitante' }}</td><td>{{ area.members }}</td>
+    <td><span class="status-pill {{ 'status-resolved' if area.is_active else 'priority-low' }}">{{ 'Activa' if area.is_active else 'Inactiva' }}</span></td>
+    <td><div class="row-actions"><button class="btn icon-btn edit" data-bs-toggle="modal" data-bs-target="#area-edit-{{ area.id }}" aria-label="Editar {{ area.name }}"><i class="bi bi-pencil"></i></button>
+    {% if area.code != 'TI' %}<form action="{{ url_for('areas.toggle', area_id=area.id) }}" method="post"><button class="btn btn-secondary" type="submit">{{ 'Desactivar' if area.is_active else 'Activar' }}</button></form>{% endif %}</div></td>
+</tr>{% endfor %}
+</tbody></table></div>
+{% for area in areas %}
+<div class="modal fade" id="area-edit-{{ area.id }}" tabindex="-1" aria-labelledby="area-title-{{ area.id }}" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><form method="post" class="modal-content">
+    <div class="modal-header"><h2 class="modal-title h5" id="area-title-{{ area.id }}">Editar área</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+    <div class="modal-body"><input type="hidden" name="area_id" value="{{ area.id }}"><label class="form-label" for="code-{{ area.id }}">Código</label><input class="form-control mb-3" id="code-{{ area.id }}" name="code" value="{{ area.code }}" minlength="2" maxlength="20" required {{ 'readonly' if area.code == 'TI' else '' }}><label class="form-label" for="name-{{ area.id }}">Nombre</label><input class="form-control" id="name-{{ area.id }}" name="name" value="{{ area.name }}" minlength="3" maxlength="100" required></div>
+    <div class="modal-footer"><button class="btn btn-secondary" type="button" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-primary" type="submit">Guardar cambios</button></div>
+</form></div></div>
+{% endfor %}
+{% endblock %}

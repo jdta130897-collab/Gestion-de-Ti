@@ -1,0 +1,280 @@
+"""
+{% extends 'base.html' %}
+
+{% block title %}Informe de Monitoreo - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3"><i class="bi bi-file-earmark-bar-graph"></i> Informe de Monitoreo</h1>
+    <div>
+        <button type="button" class="btn btn-primary" onclick="window.print()">
+            <i class="bi bi-printer"></i> Imprimir
+        </button>
+        <a href="{{ url_for('monitoring_page') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Volver
+        </a>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="card shadow-sm mb-4 no-print">
+    <div class="card-body">
+        <form method="get" action="{{ url_for('monitoring_report') }}" class="row g-3">
+            <div class="col-md-3">
+                <label for="asset_id" class="form-label">Activo</label>
+                <select class="form-select" id="asset_id" name="asset_id">
+                    <option value="">Todos los activos</option>
+                    {% for asset in assets %}
+                        <option value="{{ asset.id }}" {% if selected_asset and selected_asset|string == asset.id|string %}selected{% endif %}>
+                            {{ asset.name }} ({{ translate_asset_type(asset.type) }})
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="start_date" class="form-label">Fecha inicio</label>
+                <input type="date" class="form-select" id="start_date" name="start_date" value="{{ start_date }}">
+            </div>
+            <div class="col-md-3">
+                <label for="end_date" class="form-label">Fecha fin</label>
+                <input type="date" class="form-select" id="end_date" name="end_date" value="{{ end_date }}">
+            </div>
+            <div class="col-md-3">
+                <label for="metric" class="form-label">Métrica</label>
+                <select class="form-select" id="metric" name="metric">
+                    <option value="">Todas las métricas</option>
+                    <option value="cpu_usage" {% if metric_name == 'cpu_usage' %}selected{% endif %}>CPU</option>
+                    <option value="memory_usage" {% if metric_name == 'memory_usage' %}selected{% endif %}>Memoria</option>
+                    <option value="disk_usage" {% if metric_name == 'disk_usage' %}selected{% endif %}>Disco</option>
+                    <option value="temperature" {% if metric_name == 'temperature' %}selected{% endif %}>Temperatura</option>
+                </select>
+            </div>
+            <div class="col-md-12 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary me-2">
+                    <i class="bi bi-filter"></i> Generar Informe
+                </button>
+                <a href="{{ url_for('monitoring_report') }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-x-circle"></i> Limpiar
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Contenido del Informe -->
+<div class="card shadow-sm">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="card-title mb-0">Informe de Monitoreo</h5>
+        <span class="badge bg-primary">{{ report_data.stats.period.start.strftime('%d/%m/%Y') }} - {{ report_data.stats.period.end.strftime('%d/%m/%Y') }}</span>
+    </div>
+    <div class="card-body">
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="alert alert-light">
+                    <div class="row">
+                        <div class="col-md-4 text-center">
+                            <h3>{{ report_data.stats.assets_count }}</h3>
+                            <p class="text-muted mb-0">Activos analizados</p>
+                        </div>
+                        <div class="col-md-4 text-center">
+                            <h3>{{ report_data.stats.metrics_count }}</h3>
+                            <p class="text-muted mb-0">Métricas monitoreadas</p>
+                        </div>
+                        <div class="col-md-4 text-center">
+                            <h3>{{ report_data.stats.data_points }}</h3>
+                            <p class="text-muted mb-0">Puntos de datos</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <h5>Resumen Gráfico</h5>
+                <div class="chart-container" style="height: 400px;">
+                    <canvas id="reportChart"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        {% for asset_id, asset_data in report_data.assets.items() %}
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">{{ asset_data.name }} ({{ translate_asset_type(asset_data.type) }})</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                {% for metric_name, values in asset_data.metrics.items() %}
+                                    <div class="col-md-6 mb-3">
+                                        <h6>{{ {'cpu_usage': 'CPU', 'memory_usage': 'Memoria', 
+                                              'disk_usage': 'Disco', 'temperature': 'Temperatura'}[metric_name] }}</h6>
+                                        
+                                        <div class="chart-container" style="height: 200px;">
+                                            <canvas id="chart-{{ asset_id }}-{{ metric_name }}"></canvas>
+                                        </div>
+                                        
+                                        {% set avg_value = (values|sum(attribute='value') / values|length)|round(1) %}
+                                        {% set min_value = (values|min(attribute='value')).value|round(1) %}
+                                        {% set max_value = (values|max(attribute='value')).value|round(1) %}
+                                        
+                                        <div class="d-flex justify-content-between mt-2">
+                                            <div>
+                                                <small class="text-muted d-block">Promedio</small>
+                                                <span>{{ avg_value }}{% if metric_name == 'temperature' %}°C{% else %}%{% endif %}</span>
+                                            </div>
+                                            <div>
+                                                <small class="text-muted d-block">Mínimo</small>
+                                                <span>{{ min_value }}{% if metric_name == 'temperature' %}°C{% else %}%{% endif %}</span>
+                                            </div>
+                                            <div>
+                                                <small class="text-muted d-block">Máximo</small>
+                                                <span>{{ max_value }}{% if metric_name == 'temperature' %}°C{% else %}%{% endif %}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Gráfico de resumen
+    const reportCtx = document.getElementById('reportChart').getContext('2d');
+    const reportChart = new Chart(reportCtx, {
+        type: 'line',
+        data: {
+            labels: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio'],
+            datasets: [
+                {
+                    label: 'CPU Promedio (%)',
+                    data: [65, 59, 80, 81, 56, 55, 40],
+                    borderColor: 'rgb(255, 99, 132)',
+                    backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                    fill: true
+                },
+                {
+                    label: 'Memoria Promedio (%)',
+                    data: [28, 48, 40, 19, 86, 27, 90],
+                    borderColor: 'rgb(54, 162, 235)',
+                    backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                    fill: true
+                },
+                {
+                    label: 'Disco Promedio (%)',
+                    data: [70, 60, 65, 58, 75, 80, 85],
+                    borderColor: 'rgb(75, 192, 192)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                    fill: true
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    suggestedMax: 100
+                }
+            }
+        }
+    });
+    
+    // Gráficos individuales por activo y métrica
+    {% for asset_id, asset_data in report_data.assets.items() %}
+        {% for metric_name, values in asset_data.metrics.items() %}
+            const ctx{{ asset_id }}{{ metric_name }} = document.getElementById('chart-{{ asset_id }}-{{ metric_name }}').getContext('2d');
+            
+            // Prepara datos
+            const labels{{ asset_id }}{{ metric_name }} = [];
+            const data{{ asset_id }}{{ metric_name }} = [];
+            
+            {% for value in values %}
+                labels{{ asset_id }}{{ metric_name }}.push('{{ value.timestamp.strftime("%d/%m %H:%M") }}');
+                data{{ asset_id }}{{ metric_name }}.push({{ value.value }});
+            {% endfor %}
+            
+            // Determinar color según la métrica
+            const color{{ asset_id }}{{ metric_name }} = 
+                {% if metric_name == 'cpu_usage' %}
+                    'rgb(255, 99, 132)'
+                {% elif metric_name == 'memory_usage' %}
+                    'rgb(54, 162, 235)'
+                {% elif metric_name == 'disk_usage' %}
+                    'rgb(75, 192, 192)'
+                {% else %}
+                    'rgb(255, 159, 64)'
+                {% endif %};
+            
+            const chart{{ asset_id }}{{ metric_name }} = new Chart(ctx{{ asset_id }}{{ metric_name }}, {
+                type: 'line',
+                data: {
+                    labels: labels{{ asset_id }}{{ metric_name }},
+                    datasets: [{
+                        label: '{{ {"cpu_usage": "CPU (%)", "memory_usage": "Memoria (%)", 
+                                   "disk_usage": "Disco (%)", "temperature": "Temperatura (°C)"}[metric_name] }}',
+                        data: data{{ asset_id }}{{ metric_name }},
+                        borderColor: color{{ asset_id }}{{ metric_name }},
+                        backgroundColor: color{{ asset_id }}{{ metric_name }}.replace('rgb', 'rgba').replace(')', ', 0.1)'),
+                        fill: true,
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            suggestedMax: {{ 100 if metric_name != 'temperature' else 80 }}
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+        {% endfor %}
+    {% endfor %}
+});
+</script>
+<style>
+@media print {
+    .no-print {
+        display: none !important;
+    }
+    .card {
+        border: none !important;
+        box-shadow: none !important;
+    }
+    .card-header {
+        background-color: white !important;
+        border-bottom: 1px solid #ddd !important;
+    }
+    body {
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+    .container {
+        max-width: 100% !important;
+        width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+}
+</style>
+{% endblock %}
+"""

@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+
+{% block title %}Detalle del reporte{% endblock %}
+
+{% block content %}
+<header class="page-head">
+    <div>
+        <p class="eyebrow">Soporte</p>
+        <h1>Reporte #{{ ticket.id }}</h1>
+    </div>
+    <a href="{{ url_for('tickets_page') }}" class="btn btn-secondary"><i class="bi bi-arrow-left"></i> Volver</a>
+</header>
+
+{% include 'tickets/preview.html' %}
+
+<section class="card">
+    <div class="card-body">
+        <h2 class="h5">Agregar seguimiento</h2>
+        <form method="POST" class="mt-3">
+            <label for="comment" class="form-label">Agregar comentario</label>
+            <textarea id="comment" name="comment" class="form-control mb-3" rows="3" required></textarea>
+            <button type="submit" class="btn btn-primary"><i class="bi bi-send-fill"></i> Publicar</button>
+        </form>
+
+        <div class="action-row">
+            {% if can_work_tickets %}
+            <a href="{{ url_for('edit_ticket', ticket_id=ticket_id) }}" class="btn btn-warning"><i class="bi bi-pencil-fill"></i> Editar</a>
+            {% endif %}
+            {% if can_delete_tickets %}
+            <form action="{{ url_for('delete_ticket', ticket_id=ticket.id) }}" method="POST" onsubmit="return confirm('¿Eliminar este ticket?')">
+                <button type="submit" class="btn btn-danger"><i class="bi bi-trash3-fill"></i> Eliminar</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+</section>
+{% endblock %}

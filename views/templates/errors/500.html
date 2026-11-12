@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+
+{% block title %}Error del servidor - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="card text-center">
+    <div class="card-body py-5">
+        <p class="eyebrow">Error 500</p>
+        <h1>Error interno</h1>
+        <p class="lede mx-auto">Ocurrió un fallo al procesar la solicitud. Inténtalo de nuevo en unos minutos.</p>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-primary mt-3">Volver al panel</a>
+    </div>
+</div>
+{% endblock %}

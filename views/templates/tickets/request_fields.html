@@ -1,0 +1,15 @@
+<div class="mb-3">
+    <label for="request_kind" class="form-label">Tipo de solicitud</label>
+    <select id="request_kind" name="request_kind" class="form-select" required>
+        <option value="incident">Incidencia: reportar un problema</option>
+        <option value="request">Pedido: solicitar equipo, acceso o asistencia</option>
+    </select>
+</div>
+{% if can_manage_areas %}
+<div class="mb-3">
+    <label for="origin_area_id" class="form-label">Área solicitante</label>
+    <select id="origin_area_id" name="origin_area_id" class="form-select" required>
+        {% for area in available_areas %}<option value="{{ area.id }}" {% if session.area_id == area.id %}selected{% endif %}>{{ area.name }}</option>{% endfor %}
+    </select>
+</div>
+{% else %}<div class="alert alert-info"><i class="bi bi-diagram-3"></i> Área solicitante: <strong>{{ current_area_name }}</strong><br>Destino: Tecnología de la información</div>{% endif %}

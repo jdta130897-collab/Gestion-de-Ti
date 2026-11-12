@@ -1,0 +1,80 @@
+"""
+{% extends 'base.html' %}
+
+{% block title %}Editar Activo - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3"><i class="bi bi-hdd-rack"></i> Editar Activo</h1>
+    <div>
+        <a href="{{ url_for('asset_detail', asset_id=asset.id) }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Volver a Detalles
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Información del Activo</h5>
+            </div>
+            <div class="card-body">
+                <form method="post" action="{{ url_for('edit_asset', asset_id=asset.id) }}">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Nombre *</label>
+                        <input type="text" class="form-control" id="name" name="name" required 
+                               value="{{ asset.name }}">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="type" class="form-label">Tipo *</label>
+                        <select class="form-select" id="type" name="type" required>
+                            <option value="hardware" {% if asset.type == 'hardware' %}selected{% endif %}>Equipo físico</option>
+                            <option value="software" {% if asset.type == 'software' %}selected{% endif %}>Programa informático</option>
+                            <option value="network" {% if asset.type == 'network' %}selected{% endif %}>Red</option>
+                            <option value="peripheral" {% if asset.type == 'peripheral' %}selected{% endif %}>Periférico</option>
+                            <option value="other" {% if asset.type == 'other' %}selected{% endif %}>Otro</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="status" class="form-label">Estado *</label>
+                        <select class="form-select" id="status" name="status" required>
+                            <option value="active" {% if asset.status == 'active' %}selected{% endif %}>Activo</option>
+                            <option value="maintenance" {% if asset.status == 'maintenance' %}selected{% endif %}>En mantenimiento</option>
+                            <option value="retired" {% if asset.status == 'retired' %}selected{% endif %}>Retirado</option>
+                            <option value="storage" {% if asset.status == 'storage' %}selected{% endif %}>En almacén</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="purchase_date" class="form-label">Fecha de compra *</label>
+                        <input type="date" class="form-control" id="purchase_date" name="purchase_date" 
+                               required value="{{ asset.purchase_date }}">
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="assigned_to" class="form-label">Asignado a</label>
+                        <select class="form-select" id="assigned_to" name="assigned_to">
+                            <option value="">No asignado</option>
+                            {% for user in users %}
+                                <option value="{{ user.id }}" {% if asset.assigned_to == user.id %}selected{% endif %}>
+                                    {{ user.name }} ({{ user.email }}) - {{ translate_user_role(user.role) }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> Guardar Cambios
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+"""

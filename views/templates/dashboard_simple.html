@@ -1,0 +1,127 @@
+{% extends 'base.html' %}
+
+{% block title %}Panel principal - {{ app_name }}{% endblock %}
+
+{% block content %}
+{% set assets = stats.assets if stats is defined else 0 %}
+{% set maintenance = stats.maintenance_assets if stats is defined else 0 %}
+{% set open_tickets = stats.open_tickets if stats is defined else 0 %}
+{% set critical = stats.critical_tickets if stats is defined else 0 %}
+{% set total_tickets = stats.total_tickets if stats is defined and stats.total_tickets is defined else open_tickets %}
+{% set in_progress = stats.in_progress if stats is defined and stats.in_progress is defined else 0 %}
+{% set resolved = stats.resolved if stats is defined and stats.resolved is defined else 0 %}
+
+<section class="hero">
+    <div class="hero-copy">
+        <p class="eyebrow">{{ 'Administración general' if can_manage_areas else current_area_name }}</p>
+        <h1>{{ greeting|default('Hola') }}, {{ session.user_name or 'equipo' }}</h1>
+        <p class="lede">
+            {% if can_manage_areas %}Áreas, usuarios y seguimiento general de solicitudes{% elif can_work_tickets %}Recepción y atención de pedidos e incidencias de las áreas{% elif current_role == 'manager' %}Pedidos e incidencias de tu área{% else %}Tus pedidos, reportes y su seguimiento{% endif %}
+            {% if today_label is defined %} · {{ today_label }}{% endif %}.
+        </p>
+        <div class="chip-row">
+            <span class="chip">{{ open_tickets }} abiertos</span>
+            <span class="chip">{{ critical }} críticos</span>
+            {% if can_view_assets %}<span class="chip">{{ maintenance }} en mantenimiento</span>{% endif %}
+        </div>
+        <div class="hero-actions">
+            <a class="btn btn-primary" href="{{ url_for('create_ticket') }}"><i class="bi bi-plus-lg"></i> Nuevo reporte</a>
+            {% if can_monitor %}<a class="btn btn-ink" href="{{ url_for('monitoring_page') }}"><i class="bi bi-activity"></i> Ir a monitoreo</a>{% endif %}
+            <a class="btn btn-secondary" href="{{ url_for('chatbot_view') }}"><i class="bi bi-mic-fill"></i> Reportar por voz</a>
+        </div>
+    </div>
+    <div class="hero-art" aria-hidden="true">
+        <i class="bi bi-pc-display-horizontal"></i>
+        <span>Operación TI</span>
+    </div>
+</section>
+
+<section class="kpi-grid" aria-label="Indicadores">
+    {% if can_view_assets %}
+    <article class="kpi sky">
+        <p class="label">Activos</p>
+        <strong>{{ assets }}</strong>
+        <small>{% if can_manage_assets %}Puedes actualizar el inventario{% else %}Consulta del inventario{% endif %}</small>
+    </article>
+    <article class="kpi sand">
+        <p class="label">Mantenimiento</p>
+        <strong>{{ maintenance }}</strong>
+        <small>Equipos en servicio</small>
+    </article>
+    {% else %}
+    <article class="kpi sky">
+        <p class="label">Tus reportes</p>
+        <strong data-live-ticket="total">{{ total_tickets }}</strong>
+        <small>Reportes creados por ti</small>
+    </article>
+    <article class="kpi sand">
+        <p class="label">Resueltos</p>
+        <strong data-live-ticket="resolved">{{ resolved }}</strong>
+        <small>Cerrados o resueltos</small>
+    </article>
+    {% endif %}
+    <article class="kpi rose">
+        <p class="label">Reportes abiertos</p>
+        <strong data-live-ticket="open">{{ open_tickets }}</strong>
+        <small>{% if can_work_tickets %}Cola de atención{% else %}Pendientes de tu reporte{% endif %}</small>
+    </article>
+    <article class="kpi mint">
+        <p class="label">Críticos</p>
+        <strong data-live-ticket="critical">{{ critical }}</strong>
+        <small>Prioridad crítica</small>
+    </article>
+</section>
+
+<section class="mini-grid">
+    <article class="mini"><p>Reportes totales</p><strong data-live-ticket="total">{{ total_tickets }}</strong></article>
+    <article class="mini"><p>En progreso</p><strong data-live-ticket="progress">{{ in_progress }}</strong></article>
+    <article class="mini"><p>Resueltos o cerrados</p><strong data-live-ticket="resolved">{{ resolved }}</strong></article>
+    {% if can_view_assets %}
+    <article class="mini"><p>Activos recientes</p><strong>{{ recent_assets|length if recent_assets is defined else 0 }}</strong></article>
+    {% endif %}
+</section>
+
+{% include 'analytics/dashboard.html' %}
+
+<section class="chart-grid">
+    <article class="card chart-card">
+        <div class="chart-heading"><h2>Reportes por prioridad</h2><div class="chart-downloads"><button class="btn btn-secondary btn-sm" type="button" data-download-png="priority">PNG 4K</button><a class="btn btn-secondary btn-sm" data-download-svg="priority">SVG</a></div></div>
+        <canvas id="priorityChart"></canvas>
+    </article>
+    <article class="card chart-card">
+        <div class="chart-heading"><h2>Estado de reportes</h2><div class="chart-downloads"><button class="btn btn-secondary btn-sm" type="button" data-download-png="status">PNG 4K</button><a class="btn btn-secondary btn-sm" data-download-svg="status">SVG</a></div></div>
+        <canvas id="statusChart"></canvas>
+    </article>
+</section>
+
+<section class="card">
+    <div class="card-body">
+        <div class="page-toolbar">
+            <h2 class="h5 mb-0">Reportes recientes</h2>
+            <a href="{{ url_for('tickets_page') }}" class="btn btn-primary btn-sm"><i class="bi bi-arrow-right"></i> Ver todos</a>
+        </div>
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr><th>Asunto</th><th>Prioridad</th><th>Estado</th></tr>
+                </thead>
+                <tbody>
+                    {% if recent_tickets is defined and recent_tickets %}
+                    {% for ticket in recent_tickets %}
+                    <tr>
+                        <td><a href="{{ url_for('view_ticket', ticket_id=ticket.id) }}" data-ticket-preview>{{ ticket.title }}</a></td>
+                        <td>{{ translate_ticket_priority(ticket.priority) }}</td>
+                        <td>{{ translate_ticket_status(ticket.status) }}</td>
+                    </tr>
+                    {% endfor %}
+                    {% else %}
+                    <tr><td colspan="3">No hay reportes recientes.</td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}<script src="{{ url_for('static', filename='js/analytics.js') }}" defer></script>{% endblock %}

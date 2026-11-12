@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+
+{% block title %}Iniciar sesión - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="login-screen">
+    <section class="login-visual">
+        <div class="login-logo"><i class="bi bi-cpu"></i> {{ app_name }}</div>
+        <div class="login-copy">
+            <h1>Tu operación de TI, en un solo acceso</h1>
+            <p>Activos, reportes, monitoreo y reportes por voz, con el mismo panel en escritorio y celular.</p>
+            <div class="login-points">
+                <div class="point-card"><i class="bi bi-ticket-perforated-fill"></i><div><strong>Reportes</strong><span>Prioridad y estado</span></div></div>
+                <div class="point-card"><i class="bi bi-activity"></i><div><strong>Monitoreo</strong><span>Métricas del inventario</span></div></div>
+            </div>
+        </div>
+    </section>
+    <section class="login-panel">
+        <form class="login-card" method="post" action="{{ url_for('login') }}">
+            <h2>Iniciar sesión</h2>
+            <p class="hint">Entra con tu correo institucional.</p>
+            <label class="field">
+                <span class="visually-hidden">Correo electrónico</span>
+                <input type="email" id="email" name="email" placeholder="Correo electrónico" required autocomplete="username">
+                <i class="bi bi-envelope-fill"></i>
+            </label>
+            <label class="field">
+                <span class="visually-hidden">Contraseña</span>
+                <input type="password" id="password" name="password" placeholder="Contraseña" required autocomplete="current-password">
+                <i class="bi bi-lock-fill"></i>
+            </label>
+            <button type="submit" class="login-submit"><i class="bi bi-box-arrow-in-right"></i> Entrar</button>
+            <p class="login-note">Si no tienes cuenta, pídela al administrador.</p>
+        </form>
+    </section>
+</div>
+{% endblock %}

@@ -1,0 +1,122 @@
+{% extends 'base.html' %}
+
+{% block title %}Mi Perfil - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3"><i class="bi bi-person-circle"></i> Mi Perfil</h1>
+    <div>
+        {% if can_manage_users %}
+        <a href="{{ url_for('edit_user', user_id=session.user_id) }}" class="btn btn-primary">
+            <i class="bi bi-pencil-fill"></i> Editar Perfil
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Información Personal</h5>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-4 fw-bold">Nombre:</div>
+                    <div class="col-md-8">{{ user.name }}</div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-4 fw-bold">Correo electrónico:</div>
+                    <div class="col-md-8">{{ user.email }}</div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-4 fw-bold">Rol:</div>
+                    <div class="col-md-8">
+                        <span class="badge {% if user.role == 'admin' %}bg-danger{% elif user.role == 'manager' %}bg-warning{% elif user.role == 'technician' %}bg-info{% else %}bg-secondary{% endif %}">
+                            {{ translate_user_role(user.role) }}
+                        </span>
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-4 fw-bold">Miembro desde:</div>
+                    <div class="col-md-8">{{ format_date(user.created_at) }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Actividad Reciente</h5>
+            </div>
+            <div class="card-body p-0">
+                <ul class="list-group list-group-flush">
+                    {% if recent_tickets %}
+                        {% for ticket in recent_tickets %}
+                            <li class="list-group-item">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <h6 class="mb-1">
+                                        <a href="{{ url_for('view_ticket', ticket_id=ticket.id) }}">
+                                            {{ ticket.title }}
+                                        </a>
+                                    </h6>
+                                    <small>{{ time_since(ticket.updated_at) }}</small>
+                                </div>
+                                <p class="mb-1">
+                                    <span class="badge {% if ticket.status == 'open' %}bg-info{% elif ticket.status == 'in_progress' %}bg-warning{% elif ticket.status == 'resolved' %}bg-success{% else %}bg-secondary{% endif %}">
+                                        {{ {'open': 'Abierto', 'in_progress': 'En progreso', 
+                                           'resolved': 'Resuelto', 'closed': 'Cerrado'}[ticket.status] }}
+                                    </span>
+                                    <span class="badge {% if ticket.priority == 'critical' %}bg-danger{% elif ticket.priority == 'high' %}bg-danger bg-opacity-75{% elif ticket.priority == 'medium' %}bg-warning{% else %}bg-info{% endif %}">
+                                        {{ {'critical': 'Crítica', 'high': 'Alta', 
+                                           'medium': 'Media', 'low': 'Baja'}[ticket.priority] }}
+                                    </span>
+                                </p>
+                            </li>
+                        {% endfor %}
+                    {% else %}
+                        <li class="list-group-item text-center py-4">
+                            <p class="text-muted mb-0">No hay actividad reciente</p>
+                        </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+        
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Activos Asignados</h5>
+            </div>
+            <div class="card-body p-0">
+                <ul class="list-group list-group-flush">
+                    {% if assigned_assets %}
+                        {% for asset in assigned_assets %}
+                            <li class="list-group-item">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <h6 class="mb-1">
+                                        <a href="{{ url_for('view_asset', asset_id=asset.id) }}">
+                                            {{ asset.name }}
+                                        </a>
+                                    </h6>
+                                    <small>{{ translate_asset_type(asset.type) }}</small>
+                                </div>
+                                <p class="mb-1">
+                                    <span class="badge {% if asset.status == 'active' %}bg-success{% elif asset.status == 'maintenance' %}bg-warning{% elif asset.status == 'retired' %}bg-danger{% else %}bg-secondary{% endif %}">
+                                        {{ {'active': 'Activo', 'maintenance': 'En mantenimiento', 
+                                           'retired': 'Retirado', 'storage': 'En almacén'}[asset.status] }}
+                                    </span>
+                                </p>
+                            </li>
+                        {% endfor %}
+                    {% else %}
+                        <li class="list-group-item text-center py-4">
+                            <p class="text-muted mb-0">No hay activos asignados</p>
+                        </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,125 @@
+from flask import Flask, request, render_template_string, redirect, url_for, session, flash
+
+app = Flask(__name__)
+app.secret_key = "clave_super_secreta_123"  # Clave secreta simple
+
+# Plantilla HTML para login
+LOGIN_TEMPLATE = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Iniciar Sesión</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-5">
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-primary text-white text-center">
+                        <h4>Sistema de Gestión TI</h4>
+                    </div>
+                    <div class="card-body">
+                        <h5 class="card-title text-center mb-4">Iniciar Sesión</h5>
+                        
+                        {% if error %}
+                        <div class="alert alert-danger">{{ error }}</div>
+                        {% endif %}
+                        
+                        <form method="post" action="/login">
+                            <div class="mb-3">
+                                <label class="form-label">Correo Electrónico</label>
+                                <input type="text" class="form-control" name="email" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Contraseña</label>
+                                <input type="password" class="form-control" name="password" required>
+                            </div>
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary">Iniciar Sesión</button>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="card-footer text-center">
+                        <p class="mb-0">Credenciales: admin@example.com / admin123</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+"""
+
+# Plantilla HTML para dashboard
+DASHBOARD_TEMPLATE = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dashboard</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-5">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4>Dashboard - Sistema de Gestión TI</h4>
+            </div>
+            <div class="card-body">
+                <h1>¡Bienvenido, {{ session.user_name }}!</h1>
+                <p>Has iniciado sesión correctamente como {{ session.user_role }}.</p>
+                <a href="/logout" class="btn btn-danger">Cerrar Sesión</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+"""
+
+@app.route('/')
+def index():
+    if 'user_id' in session:
+        return redirect(url_for('dashboard'))
+    return redirect(url_for('login'))
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    error = None
+    
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
+        
+        print(f"Intento de login con: {email}, {password}")
+        
+        # Comprobación de credenciales hardcoded para fines de prueba
+        if email == "admin@example.com" and password == "admin123":
+            session['user_id'] = 1
+            session['user_name'] = "Admin User"
+            session['user_role'] = "admin"
+            return redirect(url_for('dashboard'))
+        else:
+            error = "Credenciales incorrectas. Usa admin@example.com / admin123"
+    
+    return render_template_string(LOGIN_TEMPLATE, error=error)
+
+@app.route('/dashboard')
+def dashboard():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    return render_template_string(DASHBOARD_TEMPLATE)
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
+
+if __name__ == '__main__':
+    print("Iniciando aplicación en http://127.0.0.1:5001")
+    print("Credenciales: admin@example.com / admin123")
+    app.run(debug=True, port=5001)

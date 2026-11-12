@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+
+{% block title %}Gestión de Reportes{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <header class="page-head d-flex justify-content-between align-items-center">
+        <div><p class="eyebrow mb-2">Mesa de ayuda · {{ current_area_name }}</p><h1 class="mb-1">Pedidos y reportes</h1><p class="text-muted mb-0">{{ 'Recibe y atiende las solicitudes de todas las áreas.' if can_work_tickets else 'Registra solicitudes para TI y consulta su seguimiento.' }}</p></div>
+        <div class="d-flex gap-2 flex-wrap"><a href="{{ url_for('chatbot_view') }}" class="btn btn-secondary"><i class="bi bi-mic"></i> Reportar por voz</a><a href="{{ url_for('create_ticket') }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Nuevo reporte</a></div>
+    </header>
+
+    <!-- Formulario de filtrado -->
+    <form method="GET" action="{{ url_for('tickets_page') }}" class="mb-4">
+        <div class="row">
+            <!-- Filtro por fecha -->
+            <div class="col-md-4">
+                <label for="date_filter" class="form-label">Filtrar por Fecha:</label>
+                <input type="date" id="date_filter" name="date_filter" class="form-control" value="{{ request.args.get('date_filter', '') }}">
+            </div>
+            <!-- Filtro por prioridad -->
+            <div class="col-md-4">
+                <label for="priority_filter" class="form-label">Filtrar por Prioridad:</label>
+                <select id="priority_filter" name="priority_filter" class="form-select">
+                    <option value="">Todas</option>
+                    <option value="critical" {% if request.args.get('priority_filter') == 'critical' %}selected{% endif %}>Crítica</option>
+                    <option value="high" {% if request.args.get('priority_filter') == 'high' %}selected{% endif %}>Alta</option>
+                    <option value="medium" {% if request.args.get('priority_filter') == 'medium' %}selected{% endif %}>Media</option>
+                    <option value="low" {% if request.args.get('priority_filter') == 'low' %}selected{% endif %}>Baja</option>
+                </select>
+            </div>
+            <!-- Botón de aplicar filtros -->
+            <div class="col-md-4 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary me-2"><i class="bi bi-funnel-fill"></i> Aplicar Filtros</button>
+                <a href="{{ url_for('tickets_page') }}" class="btn btn-secondary"><i class="bi bi-arrow-counterclockwise"></i> Limpiar Filtros</a>
+            </div>
+        </div>
+    </form>
+
+    <!-- Tabla de tickets -->
+    <div class="table-responsive" role="region" aria-label="Tabla de datos; desliza para ver mas columnas" tabindex="0"><table class="table table-bordered">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Asunto</th>
+                <th>Área solicitante</th>
+                <th>Tipo</th>
+                <th>Prioridad</th>
+                <th>Estado</th>
+                <th>Fecha</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for ticket in tickets %}
+            <tr>
+                <td>{{ ticket["id"] }}</td>
+                <td>{{ ticket["title"] }}</td>
+                <td>{{ ticket.origin_area_name or 'TI' }}</td>
+                <td>{{ 'Pedido' if ticket.request_kind == 'request' else 'Incidencia' }}<br><small class="text-muted"><i class="bi bi-{{ 'mic' if ticket.channel == 'voice' else 'keyboard' }}"></i> {{ 'Por voz' if ticket.channel == 'voice' else 'Formulario' }}</small></td>
+                <td><span class="priority-pill priority-{{ ticket.priority }}">{{ translate_ticket_priority(ticket.priority) }}</span></td>
+                <td><span class="status-pill status-{{ ticket.status }}">{{ translate_ticket_status(ticket.status) }}</span></td>
+                <td>{{ format_datetime(ticket.created_at, '%d/%m/%Y %H:%M') }}</td>
+                <td>
+                    <div class="row-actions">
+                    <a href="{{ url_for('view_ticket', ticket_id=ticket['id']) }}" class="btn icon-btn view" data-ticket-preview title="Vista previa" aria-label="Vista previa del reporte"><i class="bi bi-eye-fill"></i></a>
+                    {% if can_work_tickets %}
+                    <a href="{{ url_for('edit_ticket', ticket_id=ticket['id']) }}" class="btn icon-btn edit" title="Editar" aria-label="Editar ticket"><i class="bi bi-pencil-fill"></i></a>
+                    {% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="8" class="text-center">No hay reportes disponibles.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></div>
+</div>
+{% endblock %}

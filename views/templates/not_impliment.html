@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+
+{% block title %}Funcionalidad No Disponible - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-sm text-center">
+                <div class="card-body p-5">
+                    <div class="mb-4">
+                        <i class="bi bi-tools text-warning" style="font-size: 5rem;"></i>
+                    </div>
+                    <h1 class="h3 mb-3">Funcionalidad En Desarrollo</h1>
+                    <p class="lead mb-4">La funcionalidad <strong>{{ feature }}</strong> aún está en desarrollo.</p>
+                    <p class="mb-4">Estamos trabajando para implementar esta característica pronto. Por favor, vuelve
+                        más tarde.</p>
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-primary">
+                        <i class="bi bi-house"></i> Volver al Panel principal
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

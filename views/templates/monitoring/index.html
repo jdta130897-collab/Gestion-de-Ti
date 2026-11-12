@@ -1,0 +1,104 @@
+{% extends 'base.html' %}
+
+{% block title %}Panel de Monitoreo{% endblock %}
+
+{% block content %}
+<a href="{{ url_for('add_monitoring_metric') }}" class="btn btn-primary mb-3"><i class="bi bi-plus-lg"></i> Agregar métrica</a>
+
+
+<form method="get" class="mb-3 d-flex align-items-center">
+    <label for="name" class="form-label me-2">Filtrar por tipo de métrica:</label>
+    <select name="name" class="form-select me-2" style="width: auto;">
+        <option value="">Todas</option>
+        {% for name in metric_names %}
+        <option value="{{ name }}" {% if name==selected_name %}selected{% endif %}>{{ translate_metric_name(name) }}</option>
+        {% endfor %}
+    </select>
+    <button type="submit" class="btn btn-primary"><i class="bi bi-funnel-fill"></i> Aplicar</button>
+</form>
+<h2>Panel de Monitoreo del Sistema</h2>
+
+{% if metrics %}
+<canvas id="monitoringChart" height="100"></canvas>
+
+<script>
+    const ctx = document.getElementById('monitoringChart').getContext('2d');
+    const metricName = "{{ selected_name or 'general' }}".toLowerCase();
+    const labels = [{% for m in metrics %}"{{ format_datetime(m.timestamp) }}",{% endfor %}];
+    const values = [{% for m in metrics if m is mapping and 'metric_value' in m %}{{ m.metric_value | float }},{% endfor %}];
+
+
+    const pointColors = values.map(v => {
+        if (metricName.includes("temp") && v > 70) return "red";
+        if (metricName.includes("cpu") && v > 90) return "red";
+        if (metricName.includes("mem") && v > 90) return "red";
+        return "rgba(75, 192, 192, 1)";
+    });
+
+    const valoresCriticos = pointColors.filter(c => c === "red").length;
+    if (valoresCriticos > 0) {
+        const alerta = document.createElement("div");
+        alerta.className = "alert alert-danger";
+        alerta.innerText = `⚠️ Se han detectado ${valoresCriticos} valores críticos en las métricas mostradas.`;
+        document.querySelector("h2").insertAdjacentElement("afterend", alerta);
+    }
+
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: '{{ selected_name or "Métrica" }}',
+                data: values,
+                pointBackgroundColor: pointColors,
+                borderColor: 'rgba(54, 162, 235, 1)',
+                borderWidth: 2,
+                tension: 0.3,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                x: {
+                    title: { display: true, text: 'Fecha/Hora' }
+                },
+                y: {
+                    beginAtZero: true,
+                    title: { display: true, text: 'Valor' }
+                }
+            }
+        }
+    });
+</script>
+{% endif %}
+
+
+
+{% if metrics %}
+<a href="{{ url_for('add_monitoring_metric') }}" class="btn btn-primary mb-3"><i class="bi bi-plus-lg"></i> Agregar métrica</a>
+
+<div class="table-responsive" role="region" aria-label="Tabla de datos; desliza para ver mas columnas" tabindex="0"><table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Nombre</th>
+            <th>Valor</th>
+            <th>Unidad</th>
+            <th>Fecha</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for m in metrics %}
+        <tr>
+            <td>{{ translate_metric_name(m.metric_name) }}</td>
+            <td>{{ m.metric_value }}</td>
+            <td>{{ m.unit or '-' }}</td>
+            <td>{{ format_datetime(m.timestamp) }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table></div>
+{% else %}
+<p>No hay métricas registradas.</p>
+{% endif %}
+{% endblock %}

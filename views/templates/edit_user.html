@@ -1,0 +1,105 @@
+"""
+{% extends 'base.html' %}
+
+{% block title %}Editar Usuario - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3"><i class="bi bi-person"></i> Editar Usuario</h1>
+    <div>
+        {% if session.user_role == 'admin' %}
+        <a href="{{ url_for('users_page') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Volver
+        </a>
+        {% else %}
+        <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Volver al Panel principal
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6 mx-auto">
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Información del Usuario</h5>
+            </div>
+            <div class="card-body">
+                <form method="post" action="{{ url_for('edit_user', user_id=user.id) }}">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Nombre completo *</label>
+                        <input type="text" class="form-control" id="name" name="name" required 
+                               value="{{ user.name }}">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Correo electrónico *</label>
+                        <input type="email" class="form-control" id="email" name="email" required 
+                               value="{{ user.email }}">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Contraseña (dejar en blanco para mantener la actual)</label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="password" name="password" 
+                                   minlength="8">
+                            <button class="btn btn-outline-secondary" type="button" id="togglePassword">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </div>
+                        <div class="form-text">La contraseña debe tener al menos 8 caracteres</div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="role" class="form-label">Rol *</label>
+                        <select class="form-select" id="role" name="role" required 
+                                {% if session.user_id == user.id and session.user_role == 'admin' %}disabled{% endif %}>
+                            <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Administrador</option>
+                            <option value="manager" {% if user.role == 'manager' %}selected{% endif %}>Gerente</option>
+                            <option value="technician" {% if user.role == 'technician' %}selected{% endif %}>Técnico</option>
+                            <option value="user" {% if user.role == 'user' %}selected{% endif %}>Usuario</option>
+                        </select>
+                        {% if session.user_id == user.id and session.user_role == 'admin' %}
+                            <input type="hidden" name="role" value="admin">
+                            <div class="form-text text-danger">No puedes cambiar tu propio rol de administrador</div>
+                        {% else %}
+                            <div class="form-text">
+                                <strong>Administrador:</strong> Acceso total al sistema<br>
+                                <strong>Gerente:</strong> Gestión de activos y asignación de reportes<br>
+                                <strong>Técnico:</strong> Gestión de reportes<br>
+                                <strong>Usuario:</strong> Creación de reportes y consulta de activos asignados
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> Guardar Cambios
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Función para mostrar/ocultar contraseña
+        const togglePassword = document.getElementById('togglePassword');
+        const password = document.getElementById('password');
+        
+        togglePassword.addEventListener('click', function() {
+            const type = password.getAttribute('type') === 'password' ? 'text' : 'password';
+            password.setAttribute('type', type);
+            
+            // Cambiar icono
+            this.innerHTML = type === 'password' ? '<i class="bi bi-eye"></i>' : '<i class="bi bi-eye-slash"></i>';
+        });
+    });
+</script>
+{% endblock %}
+"""

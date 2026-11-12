@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+
+{% block title %}Asistente - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4 voice-workspace" data-voice-workspace>
+    <div class="card shadow-sm">
+        <div class="card-body voice-intro">
+            <p class="eyebrow">Mesa de ayuda por voz</p><h1 class="mb-3">Asistente de Reportes por Voz</h1>
+            <p class="lead">Describe tu problema hablando y se creará un reporte automáticamente.</p>
+        </div>
+    </div>
+
+    <div class="row mt-5 justify-content-center">
+        <div class="col-12 voice-console">
+            <div class="card shadow-sm h-100">
+                <div class="card-body text-center p-4">
+                    <div class="voice-visualizer" data-voice-state="idle" aria-hidden="true">
+                        <span class="voice-orbit"></span>
+                        <span class="voice-ripple"></span><span class="voice-ripple voice-ripple-delayed"></span>
+                        <div class="voice-core"><i class="bi bi-mic-fill"></i></div>
+                        <div class="voice-waveform">{% for bar in range(11) %}<span style="--bar: {{ bar }}"></span>{% endfor %}</div>
+                        <span class="voice-state-label">Listo para escucharte</span>
+                    </div>
+                    <h5 class="card-title mt-3">Reportar Problema por Voz</h5>
+                    <p class="card-text">Graba tu problema y detén el audio cuando termines. Máximo 3 minutos por reporte.</p>
+                    {% include 'tickets/timer.html' %}
+                    {% include 'tickets/request_fields.html' %}
+                    <button id="start-btn" class="btn btn-primary"><i class="bi bi-mic-fill"></i> Iniciar grabación</button>
+                    <button id="stop-btn" class="btn btn-danger" disabled><i class="bi bi-stop-fill"></i> Detener grabación</button>
+                    <p id="status" class="mt-2" role="status" aria-live="polite">Listo para grabar</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/voice_recorder.js') }}" defer></script>{% endblock %}

@@ -1,0 +1,346 @@
+"""
+{% extends 'base.html' %}
+
+{% block title %}{{ asset.name }} - Detalles de Activo{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3">
+            <i class="bi bi-hdd-rack"></i> {{ asset.name }}
+            <span class="badge {% if asset.status == 'active' %}bg-success{% elif asset.status == 'maintenance' %}bg-warning{% elif asset.status == 'retired' %}bg-danger{% else %}bg-secondary{% endif %}">
+                {{ {'active': 'Activo', 'maintenance': 'En mantenimiento',
+                   'retired': 'Retirado', 'storage': 'En almacén'}[asset.status] }}
+            </span>
+        </h1>
+        <p class="text-muted">ID: {{ asset.id }}</p>
+    </div>
+    <div>
+        <a href="{{ url_for('edit_asset', asset_id=asset.id) }}" class="btn btn-primary">
+            <i class="bi bi-pencil"></i> Editar
+        </a>
+        <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModal">
+            <i class="bi bi-trash"></i> Eliminar
+        </button>
+        <a href="{{ url_for('assets_page') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Volver
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Información del activo -->
+    <div class="col-md-6 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Información del Activo</h5>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-4 fw-bold">Nombre:</div>
+                    <div class="col-md-8">{{ asset.name }}</div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-4 fw-bold">Tipo:</div>
+                    <div class="col-md-8">
+                        <span class="badge bg-primary">
+                            {{ {'hardware': 'Equipo físico', 'software': 'Programa informático', 'network': 'Red',
+                               'peripheral': 'Periférico', 'other': 'Otro'}[asset.type] }}
+                        </span>
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-4 fw-bold">Estado:</div>
+                    <div class="col-md-8">
+                        <span class="badge {% if asset.status == 'active' %}bg-success{% elif asset.status == 'maintenance' %}bg-warning{% elif asset.status == 'retired' %}bg-danger{% else %}bg-secondary{% endif %}">
+                            {{ {'active': 'Activo', 'maintenance': 'En mantenimiento',
+                               'retired': 'Retirado', 'storage': 'En almacén'}[asset.status] }}
+                        </span>
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-4 fw-bold">Fecha de compra:</div>
+                    <div class="col-md-8">{{ asset.purchase_date }}</div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-4 fw-bold">Asignado a:</div>
+                    <div class="col-md-8">
+                        {% if asset.assigned_user_name %}
+                            {{ asset.assigned_user_name }} ({{ asset.assigned_user_email }})
+                        {% else %}
+                            <span class="text-muted">No asignado</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-4 fw-bold">Fecha de creación:</div>
+                    <div class="col-md-8">{{ asset.created_at }}</div>
+                </div>
+                <div class="row">
+                    <div class="col-md-4 fw-bold">Última actualización:</div>
+                    <div class="col-md-8">{{ asset.updated_at }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Datos de monitoreo -->
+    <div class="col-md-6 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">Datos de Monitoreo</h5>
+                <a href="{{ url_for('monitoring_page', asset_id=asset.id) }}" class="btn btn-sm btn-primary">
+                    <i class="bi bi-graph-up"></i> Ver Monitoreo Completo
+                </a>
+            </div>
+            <div class="card-body">
+                {% if monitoring_data and monitoring_data.metrics %}
+                    <div class="chart-container">
+                        <canvas id="monitoringChart"></canvas>
+                    </div>
+
+                    <h6 class="mt-4">Últimas lecturas:</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Métrica</th>
+                                    <th>Último valor</th>
+                                    <th>Promedio (24h)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for metric_name, values in monitoring_data.metrics.items() %}
+                                <tr>
+                                    <td>
+                                        {{ {'cpu_usage': 'CPU', 'memory_usage': 'Memoria',
+                                           'disk_usage': 'Disco', 'temperature': 'Temperatura'}[metric_name] }}
+                                    </td>
+                                    <td>
+                                        {{ values[-1].value|round(1) }}
+                                        {% if metric_name == 'temperature' %}°C{% else %}%{% endif %}
+                                    </td>
+                                    <td>
+                                        {% set total = 0 %}
+                                        {% for value in values %}
+                                            {% set total = total + value.value %}
+                                        {% endfor %}
+                                        {{ (total / values|length)|round(1) }}
+                                        {% if metric_name == 'temperature' %}°C{% else %}%{% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="bi bi-graph-up display-1 text-muted mb-3"></i>
+                        <p>No hay datos de monitoreo disponibles para este activo.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Tickets relacionados -->
+    <div class="col-md-12 mb-4">
+        <div class="card shadow-sm">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">Reportes Relacionados</h5>
+                <a href="{{ url_for('add_ticket') }}?related_asset={{ asset.id }}" class="btn btn-sm btn-primary">
+                    <i class="bi bi-plus-circle"></i> Nuevo Reporte
+                </a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>ID</th>
+                                <th>Título</th>
+                                <th>Estado</th>
+                                <th>Prioridad</th>
+                                <th>Creado por</th>
+                                <th>Fecha</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if related_tickets %}
+                                {% for ticket in related_tickets %}
+                                <tr>
+                                    <td>#{{ ticket.id }}</td>
+                                    <td>
+                                        <a href="{{ url_for('ticket_detail', ticket_id=ticket.id) }}">
+                                            {{ ticket.title }}
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <span class="badge {% if ticket.status == 'open' %}bg-info{% elif ticket.status == 'in_progress' %}bg-warning{% elif ticket.status == 'resolved' %}bg-success{% else %}bg-secondary{% endif %}">
+                                            {{ {'open': 'Abierto', 'in_progress': 'En progreso',
+                                               'resolved': 'Resuelto', 'closed': 'Cerrado'}[ticket.status] }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="badge {% if ticket.priority == 'critical' %}bg-danger{% elif ticket.priority == 'high' %}bg-danger bg-opacity-75{% elif ticket.priority == 'medium' %}bg-warning{% else %}bg-info{% endif %}">
+                                            {{ {'critical': 'Crítica', 'high': 'Alta',
+                                               'medium': 'Media', 'low': 'Baja'}[ticket.priority] }}
+                                        </span>
+                                    </td>
+                                    <td>{{ ticket.created_by_name }}</td>
+                                    <td>{{ time_since(ticket.created_at) }}</td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="6" class="text-center py-3">No hay reportes relacionados con este activo</td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de confirmación de eliminación -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirmar eliminación</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>¿Estás seguro de que deseas eliminar el activo <strong>{{ asset.name }}</strong>?</p>
+                <p class="text-danger">Esta acción no se puede deshacer. Los reportes relacionados con este activo perderán esta referencia.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <form action="{{ url_for('delete_asset', asset_id=asset.id) }}" method="post">
+                    <button type="submit" class="btn btn-danger">Eliminar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    {% if monitoring_data and monitoring_data.metrics %}
+        // Preparar datos para el gráfico
+        const labels = [];
+        const datasets = [];
+
+        {% if monitoring_data.metrics.cpu_usage %}
+            const cpuData = [];
+            {% for value in monitoring_data.metrics.cpu_usage[-24:] %}
+                labels.push('{{ value.timestamp.strftime("%H:%M") }}');
+                cpuData.push({{ value.value }});
+            {% endfor %}
+
+            datasets.push({
+                label: 'CPU (%)',
+                data: cpuData,
+                borderColor: 'rgb(255, 99, 132)',
+                backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                fill: false,
+                tension: 0.1
+            });
+        {% endif %}
+
+        {% if monitoring_data.metrics.memory_usage %}
+            const memoryData = [];
+            {% for value in monitoring_data.metrics.memory_usage[-24:] %}
+                memoryData.push({{ value.value }});
+            {% endfor %}
+
+            datasets.push({
+                label: 'Memoria (%)',
+                data: memoryData,
+                borderColor: 'rgb(54, 162, 235)',
+                backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                fill: false,
+                tension: 0.1
+            });
+        {% endif %}
+
+        {% if monitoring_data.metrics.disk_usage %}
+            const diskData = [];
+            {% for value in monitoring_data.metrics.disk_usage[-24:] %}
+                diskData.push({{ value.value }});
+            {% endfor %}
+
+            datasets.push({
+                label: 'Disco (%)',
+                data: diskData,
+                borderColor: 'rgb(75, 192, 192)',
+                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                fill: false,
+                tension: 0.1
+            });
+        {% endif %}
+
+        {% if monitoring_data.metrics.temperature %}
+            const tempData = [];
+            {% for value in monitoring_data.metrics.temperature[-24:] %}
+                tempData.push({{ value.value }});
+            {% endfor %}
+
+            datasets.push({
+                label: 'Temperatura (°C)',
+                data: tempData,
+                borderColor: 'rgb(255, 159, 64)',
+                backgroundColor: 'rgba(255, 159, 64, 0.2)',
+                fill: false,
+                tension: 0.1,
+                yAxisID: 'y1'
+            });
+        {% endif %}
+
+        // Crear gráfico
+        const ctx = document.getElementById('monitoringChart').getContext('2d');
+        const chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: datasets
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Porcentaje (%)'
+                        },
+                        suggestedMax: 100
+                    },
+                    {% if monitoring_data.metrics.temperature %}
+                    y1: {
+                        position: 'right',
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Temperatura (°C)'
+                        },
+                        grid: {
+                            drawOnChartArea: false
+                        }
+                    }
+                    {% endif %}
+                }
+            }
+        });
+    {% endif %}
+});
+</script>
+{% endblock %}
+"""

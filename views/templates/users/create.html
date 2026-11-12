@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}Crear Usuario{% endblock %}
+
+{% block content %}
+<h2>Crear Usuario</h2>
+<form method="POST">
+  <div class="mb-3">
+    <label class="form-label">Nombre</label>
+    <input type="text" name="name" class="form-control" required>
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Correo Electrónico</label>
+    <input type="email" name="email" class="form-control" required>
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Contraseña</label>
+    <input type="password" name="password" class="form-control" required>
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Rol</label>
+    <select name="role" class="form-select">
+      <option value="super_admin" {% if user is defined and user.role == 'super_admin' %}selected{% endif %}>Superadministrador</option>
+      <option value="user" selected>Solicitante</option>
+      <option value="technician">Técnico de TI</option>
+      <option value="manager">Responsable de área</option>
+      <option value="admin">Administrador de TI</option>
+    </select>
+  </div>
+  {% include 'users/area_field.html' %}
+  <button type="submit" class="btn btn-primary"><i class="bi bi-person-plus-fill"></i> Crear</button>
+  <a href="{{ url_for('list_users') }}" class="btn btn-secondary"><i class="bi bi-x-lg"></i> Cancelar</a>
+</form>
+{% endblock %}

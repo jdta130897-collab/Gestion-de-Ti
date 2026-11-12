@@ -1,0 +1,489 @@
+"""
+{% extends 'base.html' %}
+
+{% block title %}Monitoreo - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3"><i class="bi bi-graph-up"></i> Monitoreo</h1>
+    <div>
+        <a href="{{ url_for('monitoring_report') }}" class="btn btn-primary">
+            <i class="bi bi-file-earmark-bar-graph"></i> Generar Informe
+        </a>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <form method="get" action="{{ url_for('monitoring_page') }}" class="row g-3">
+            <div class="col-md-6">
+                <label for="asset_id" class="form-label">Activo</label>
+                <select class="form-select" id="asset_id" name="asset_id">
+                    <option value="">Todos los activos</option>
+                    {% for asset in assets %}
+                        <option value="{{ asset.id }}" {% if selected_asset and selected_asset|string == asset.id|string %}selected{% endif %}>
+                            {{ asset.name }} ({{ translate_asset_type(asset.type) }})
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-6 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary me-2">
+                    <i class="bi bi-filter"></i> Filtrar
+                </button>
+                <a href="{{ url_for('monitoring_page') }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-x-circle"></i> Limpiar
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if monitoring_data and monitoring_data.assets_at_risk %}
+<!-- Activos en riesgo -->
+<div class="alert alert-danger mb-4">
+    <h5 class="alert-heading"><i class="bi bi-exclamation-triangle-fill"></i> Activos en riesgo</h5>
+    <p>Los siguientes activos muestran comportamientos anómalos o tienen riesgo de fallo:</p>
+    <div class="table-responsive">
+        <table class="table table-sm table-bordered mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Activo</th>
+                    <th>Tipo</th>
+                    <th>Riesgo</th>
+                    <th>Métricas anómalas</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for asset in monitoring_data.assets_at_risk %}
+                <tr>
+                    <td>
+                        <a href="{{ url_for('asset_detail', asset_id=asset.asset.id) }}">
+                            {{ asset.asset.name }}
+                        </a>
+                    </td>
+                    <td>{{ {'hardware': 'Equipo físico', 'software': 'Programa informático', 'network': 'Red',
+                           'peripheral': 'Periférico', 'other': 'Otro'}[asset.asset.type] }}</td>
+                    <td>
+                        <div class="progress" style="height: 6px;">
+                            <div class="progress-bar bg-danger" role="progressbar" style="width: {{ asset.risk_probability * 100 }}%"></div>
+                        </div>
+                        <small class="d-block mt-1">{{ (asset.risk_probability * 100)|int }}% probabilidad de fallo</small>
+                    </td>
+                    <td>
+                        {% for metric_name, metric_value in asset.last_metrics.items() %}
+                            <span class="badge bg-light text-dark mb-1">
+                                {{ {'cpu_usage': 'CPU', 'memory_usage': 'Memoria',
+                                   'disk_usage': 'Disco', 'temperature': 'Temperatura'}[metric_name] }}:
+                                {{ metric_value|round(1) }}{% if metric_name == 'temperature' %}°C{% else %}%{% endif %}
+                            </span>
+                        {% endfor %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<div class="row">
+    {% if selected_asset %}
+        <!-- Monitoreo de un activo específico -->
+        <div class="col-md-12 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">
+                        Monitoreo: {{ monitoring_data.asset.name }}
+                    </h5>
+                    <a href="{{ url_for('asset_detail', asset_id=monitoring_data.asset.id) }}" class="btn btn-sm btn-primary">
+                        <i class="bi bi-info-circle"></i> Ver Detalles del Activo
+                    </a>
+                </div>
+                <div class="card-body">
+                    {% if monitoring_data.metrics %}
+                        <div class="row mb-4">
+                            <div class="col-md-12">
+                                <div class="chart-container" style="height: 400px;">
+                                    <canvas id="assetMonitoringChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            {% for metric_name, values in monitoring_data.metrics.items() %}
+                                <div class="col-md-3 mb-4">
+                                    <div class="card">
+                                        <div class="card-header py-2">
+                                            <h6 class="card-title mb-0">
+                                                {{ {'cpu_usage': 'CPU', 'memory_usage': 'Memoria',
+                                                   'disk_usage': 'Disco', 'temperature': 'Temperatura'}[metric_name] }}
+                                            </h6>
+                                        </div>
+                                        <div class="card-body">
+                                            {% set latest_value = values[-1].value if values else 0 %}
+                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                <h3 class="mb-0">{{ latest_value|round(1) }}{% if metric_name == 'temperature' %}°C{% else %}%{% endif %}</h3>
+                                                <span class="text-muted">Ahora</span>
+                                            </div>
+
+                                            {% if values|length > 1 %}
+                                                {% set avg_value = (values|sum(attribute='value') / values|length)|round(1) %}
+                                                {% set min_value = (values|min(attribute='value')).value|round(1) %}
+                                                {% set max_value = (values|max(attribute='value')).value|round(1) %}
+
+                                                <div class="d-flex justify-content-between border-top pt-2 mt-2">
+                                                    <div>
+                                                        <small class="text-muted d-block">Prom.</small>
+                                                        <span>{{ avg_value }}{% if metric_name == 'temperature' %}°C{% else %}%{% endif %}</span>
+                                                    </div>
+                                                    <div>
+                                                        <small class="text-muted d-block">Min.</small>
+                                                        <span>{{ min_value }}{% if metric_name == 'temperature' %}°C{% else %}%{% endif %}</span>
+                                                    </div>
+                                                    <div>
+                                                        <small class="text-muted d-block">Max.</small>
+                                                        <span>{{ max_value }}{% if metric_name == 'temperature' %}°C{% else %}%{% endif %}</span>
+                                                    </div>
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="bi bi-graph-up display-1 text-muted mb-3"></i>
+                            <p>No hay datos de monitoreo disponibles para este activo.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    {% else %}
+        <!-- Panel general de monitoreo -->
+        <!-- Gráficos de promedio -->
+        <div class="col-md-8 mb-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Monitoreo General</h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="generalMonitoringChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Estadísticas generales -->
+        <div class="col-md-4 mb-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Estadísticas</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <div class="card bg-light">
+                                <div class="card-body p-3 text-center">
+                                    <h3 class="mb-0">{{ assets|length }}</h3>
+                                    <small class="text-muted">Activos monitoreados</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="card bg-light">
+                                <div class="card-body p-3 text-center">
+                                    <h3 class="mb-0">{{ monitoring_data.assets_at_risk|length }}</h3>
+                                    <small class="text-muted">Activos en riesgo</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <h6>Promedios de CPU</h6>
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Activo</th>
+                                    <th>Promedio</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in monitoring_data.averages.cpu[:5] %}
+                                <tr>
+                                    <td>{{ item.asset_name }}</td>
+                                    <td>{{ item.average|round(1) }}%</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="mb-3">
+                        <h6>Promedios de Memoria</h6>
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Activo</th>
+                                    <th>Promedio</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in monitoring_data.averages.memory[:5] %}
+                                <tr>
+                                    <td>{{ item.asset_name }}</td>
+                                    <td>{{ item.average|round(1) }}%</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Lecturas recientes -->
+        <div class="col-md-12 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Últimas Lecturas</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Activo</th>
+                                    <th>Tipo</th>
+                                    <th>Métrica</th>
+                                    <th>Valor</th>
+                                    <th>Fecha</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for metric in monitoring_data.latest_metrics %}
+                                <tr>
+                                    <td>
+                                        <a href="{{ url_for('asset_detail', asset_id=metric.asset_id) }}">
+                                            {{ metric.asset_name }}
+                                        </a>
+                                    </td>
+                                    <td>{{ {'hardware': 'Equipo físico', 'software': 'Programa informático', 'network': 'Red',
+                                           'peripheral': 'Periférico', 'other': 'Otro'}[metric.asset_type] }}</td>
+                                    <td>
+                                        {{ {'cpu_usage': 'CPU', 'memory_usage': 'Memoria',
+                                           'disk_usage': 'Disco', 'temperature': 'Temperatura'}[metric.metric_name] }}
+                                    </td>
+                                    <td>
+                                        {% set value_class = 'text-success' %}
+                                        {% if metric.metric_name == 'cpu_usage' and metric.metric_value > 80 %}
+                                            {% set value_class = 'text-danger' %}
+                                        {% elif metric.metric_name == 'cpu_usage' and metric.metric_value > 60 %}
+                                            {% set value_class = 'text-warning' %}
+                                        {% elif metric.metric_name == 'memory_usage' and metric.metric_value > 80 %}
+                                            {% set value_class = 'text-danger' %}
+                                        {% elif metric.metric_name == 'memory_usage' and metric.metric_value > 60 %}
+                                            {% set value_class = 'text-warning' %}
+                                        {% elif metric.metric_name == 'disk_usage' and metric.metric_value > 85 %}
+                                            {% set value_class = 'text-danger' %}
+                                        {% elif metric.metric_name == 'disk_usage' and metric.metric_value > 70 %}
+                                            {% set value_class = 'text-warning' %}
+                                        {% elif metric.metric_name == 'temperature' and metric.metric_value > 70 %}
+                                            {% set value_class = 'text-danger' %}
+                                        {% elif metric.metric_name == 'temperature' and metric.metric_value > 60 %}
+                                            {% set value_class = 'text-warning' %}
+                                        {% endif %}
+
+                                        <span class="{{ value_class }}">
+                                            {{ metric.metric_value|round(1) }}
+                                            {% if metric.metric_name == 'temperature' %}°C{% else %}%{% endif %}
+                                        </span>
+                                    </td>
+                                    <td>{{ time_since(metric.timestamp) }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    {% if selected_asset and monitoring_data and monitoring_data.metrics %}
+        // Gráfico para un activo específico
+        const labels = [];
+        const datasets = [];
+
+        // Extraer las etiquetas de tiempo (usar la primera métrica disponible)
+        {% set first_metric = monitoring_data.metrics|first %}
+        {% for value in monitoring_data.metrics[first_metric] %}
+            labels.push('{{ value.timestamp.strftime("%d/%m %H:%M") }}');
+        {% endfor %}
+
+        // Configurar datasets para cada métrica
+        {% if monitoring_data.metrics.cpu_usage %}
+            const cpuData = [];
+            {% for value in monitoring_data.metrics.cpu_usage %}
+                cpuData.push({{ value.value }});
+            {% endfor %}
+
+            datasets.push({
+                label: 'CPU (%)',
+                data: cpuData,
+                borderColor: 'rgb(255, 99, 132)',
+                backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                fill: false,
+                tension: 0.1
+            });
+        {% endif %}
+
+        {% if monitoring_data.metrics.memory_usage %}
+            const memoryData = [];
+            {% for value in monitoring_data.metrics.memory_usage %}
+                memoryData.push({{ value.value }});
+            {% endfor %}
+
+            datasets.push({
+                label: 'Memoria (%)',
+                data: memoryData,
+                borderColor: 'rgb(54, 162, 235)',
+                backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                fill: false,
+                tension: 0.1
+            });
+        {% endif %}
+
+        {% if monitoring_data.metrics.disk_usage %}
+            const diskData = [];
+            {% for value in monitoring_data.metrics.disk_usage %}
+                diskData.push({{ value.value }});
+            {% endfor %}
+
+            datasets.push({
+                label: 'Disco (%)',
+                data: diskData,
+                borderColor: 'rgb(75, 192, 192)',
+                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                fill: false,
+                tension: 0.1
+            });
+        {% endif %}
+
+        {% if monitoring_data.metrics.temperature %}
+            const tempData = [];
+            {% for value in monitoring_data.metrics.temperature %}
+                tempData.push({{ value.value }});
+            {% endfor %}
+
+            datasets.push({
+                label: 'Temperatura (°C)',
+                data: tempData,
+                borderColor: 'rgb(255, 159, 64)',
+                backgroundColor: 'rgba(255, 159, 64, 0.2)',
+                fill: false,
+                tension: 0.1,
+                yAxisID: 'y1'
+            });
+        {% endif %}
+
+        // Crear gráfico
+        const assetCtx = document.getElementById('assetMonitoringChart').getContext('2d');
+        const assetChart = new Chart(assetCtx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: datasets
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Porcentaje (%)'
+                        },
+                        suggestedMax: 100
+                    },
+                    {% if monitoring_data.metrics.temperature %}
+                    y1: {
+                        position: 'right',
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Temperatura (°C)'
+                        },
+                        grid: {
+                            drawOnChartArea: false
+                        }
+                    }
+                    {% endif %}
+                }
+            }
+        });
+    {% else %}
+        // Gráfico para panel general
+        const generalCtx = document.getElementById('generalMonitoringChart').getContext('2d');
+
+        // Datos para el gráfico (usar activos con más uso de CPU)
+        const generalLabels = ['Activo 1', 'Activo 2', 'Activo 3', 'Activo 4', 'Activo 5'];
+        const cpuData = [65, 59, 80, 81, 56];
+        const memoryData = [28, 48, 40, 19, 86];
+        const diskData = [70, 60, 65, 58, 75];
+
+        const generalChart = new Chart(generalCtx, {
+            type: 'bar',
+            data: {
+                labels: generalLabels,
+                datasets: [
+                    {
+                        label: 'CPU (%)',
+                        data: cpuData,
+                        backgroundColor: 'rgba(255, 99, 132, 0.7)',
+                        borderColor: 'rgb(255, 99, 132)',
+                        borderWidth: 1
+                    },
+                    {
+                        label: 'Memoria (%)',
+                        data: memoryData,
+                        backgroundColor: 'rgba(54, 162, 235, 0.7)',
+                        borderColor: 'rgb(54, 162, 235)',
+                        borderWidth: 1
+                    },
+                    {
+                        label: 'Disco (%)',
+                        data: diskData,
+                        backgroundColor: 'rgba(75, 192, 192, 0.7)',
+                        borderColor: 'rgb(75, 192, 192)',
+                        borderWidth: 1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        suggestedMax: 100
+                    }
+                }
+            }
+        });
+    {% endif %}
+});
+</script>
+{% endblock %}
+"""

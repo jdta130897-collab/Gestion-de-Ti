@@ -1,0 +1,85 @@
+/* Estilos personalizados */
+body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.navbar {
+    padding: 0.5rem 1rem;
+}
+
+.card {
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.card-header {
+    background-color: rgba(13, 110, 253, 0.1);
+    border-bottom: none;
+}
+
+.badge {
+    font-weight: 500;
+}
+
+.stat-card {
+    transition: transform 0.2s;
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
+}
+
+.dashboard-icon {
+    font-size: 2rem;
+    opacity: 0.7;
+}
+
+.table-hover tbody tr:hover {
+    background-color: rgba(13, 110, 253, 0.05);
+}
+
+.ticket-priority-high, .ticket-priority-critical {
+    border-left: 4px solid #dc3545;
+}
+
+.ticket-priority-medium {
+    border-left: 4px solid #fd7e14;
+}
+
+.ticket-priority-low {
+    border-left: 4px solid #0dcaf0;
+}
+
+.ticket-status-open {
+    background-color: rgba(13, 202, 240, 0.1);
+}
+
+.ticket-status-in_progress {
+    background-color: rgba(255, 193, 7, 0.1);
+}
+
+.ticket-status-resolved {
+    background-color: rgba(25, 135, 84, 0.1);
+}
+
+.ticket-status-closed {
+    background-color: rgba(173, 181, 189, 0.1);
+}
+
+.comment-bubble {
+    border-radius: 1rem;
+    max-width: 80%;
+}
+
+.comment-time {
+    font-size: 0.75rem;
+    color: #6c757d;
+}
+
+.chart-container {
+    position: relative;
+    height: 300px;
+    width: 100%;
+}

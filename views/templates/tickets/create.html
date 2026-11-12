@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+
+{% block title %}Nuevo Reporte{% endblock %}
+
+{% block content %}
+<h2>Crear Nuevo Reporte</h2>
+
+<form method="POST" data-creation-channel="manual">
+    {% include 'tickets/timer.html' %}
+    {% include 'tickets/request_fields.html' %}
+    <div class="mb-3">
+        <label for="subject" class="form-label">Asunto</label>
+        <input type="text" name="subject" class="form-control" required>
+    </div>
+
+    <div class="mb-3">
+        <label for="description" class="form-label">Descripción</label>
+        <textarea name="description" class="form-control" rows="4" required></textarea>
+    </div>
+
+    <div class="mb-3">
+        <label for="priority" class="form-label">Prioridad</label>
+        <select name="priority" class="form-select" required>
+            {% for p in priorities %}
+            <option value="{{ p }}">{{ translate_ticket_priority(p) }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+
+
+    <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Guardar Reporte</button>
+    <a href="{{ url_for('tickets_page') }}" class="btn btn-secondary"><i class="bi bi-x-lg"></i> Cancelar</a>
+</form>
+{% endblock %}

@@ -1,0 +1,90 @@
+"""
+{% extends 'base.html' %}
+
+{% block title %}Nuevo Reporte - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3"><i class="bi bi-ticket-perforated"></i> Nuevo Reporte</h1>
+    <div>
+        <a href="{{ url_for('tickets_page') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Volver
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Información del Reporte</h5>
+            </div>
+            <div class="card-body">
+                <form method="post" action="{{ url_for('add_ticket') }}">
+                    <div class="mb-3">
+                        <label for="title" class="form-label">Título *</label>
+                        <input type="text" class="form-control" id="title" name="title" required 
+                               value="{{ ticket.title if ticket else '' }}">
+                        <div class="form-text">Título descriptivo y conciso del problema</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Descripción *</label>
+                        <textarea class="form-control" id="description" name="description" rows="5" required>{{ ticket.description if ticket else '' }}</textarea>
+                        <div class="form-text">Describe el problema con detalle</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="priority" class="form-label">Prioridad *</label>
+                        <select class="form-select" id="priority" name="priority" required>
+                            <option value="">Seleccionar prioridad</option>
+                            <option value="low" {% if ticket and ticket.priority == 'low' %}selected{% endif %}>Baja</option>
+                            <option value="medium" {% if ticket and ticket.priority == 'medium' %}selected{% endif %}>Media</option>
+                            <option value="high" {% if ticket and ticket.priority == 'high' %}selected{% endif %}>Alta</option>
+                            <option value="critical" {% if ticket and ticket.priority == 'critical' %}selected{% endif %}>Crítica</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="assigned_to" class="form-label">Asignar a</label>
+                        <select class="form-select" id="assigned_to" name="assigned_to">
+                            <option value="">Sin asignar</option>
+                            {% for user in users %}
+                                <option value="{{ user.id }}" {% if ticket and ticket.assigned_to == user.id %}selected{% endif %}>
+                                    {{ user.name }} ({{ translate_user_role(user.role) }})
+                                </option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Puedes asignar el reporte a un técnico o dejarlo sin asignar</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="related_asset" class="form-label">Activo relacionado</label>
+                        <select class="form-select" id="related_asset" name="related_asset">
+                            <option value="">Ninguno</option>
+                            {% for asset in assets %}
+                                <option value="{{ asset.id }}" {% if ticket and ticket.related_asset == asset.id %}selected{% endif %}>
+                                    {{ asset.name }} ({{ translate_asset_type(asset.type) }})
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="initial_comment" class="form-label">Comentario inicial</label>
+                        <textarea class="form-control" id="initial_comment" name="initial_comment" rows="3">{{ ticket.initial_comment if ticket else '' }}</textarea>
+                        <div class="form-text">Opcional: Añade información adicional sobre el reporte</div>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> Crear Reporte
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+"""

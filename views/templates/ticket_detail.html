@@ -1,0 +1,216 @@
+"""
+{% extends 'base.html' %}
+
+{% block title %}{{ ticket.title }} - Detalles de Reporte{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3">
+            <i class="bi bi-ticket-perforated"></i> Reporte #{{ ticket.id }}
+            <span class="badge {% if ticket.status == 'open' %}bg-info{% elif ticket.status == 'in_progress' %}bg-warning{% elif ticket.status == 'resolved' %}bg-success{% else %}bg-secondary{% endif %}">
+                {{ {'open': 'Abierto', 'in_progress': 'En progreso', 
+                   'resolved': 'Resuelto', 'closed': 'Cerrado'}[ticket.status] }}
+            </span>
+            <span class="badge {% if ticket.priority == 'critical' %}bg-danger{% elif ticket.priority == 'high' %}bg-danger bg-opacity-75{% elif ticket.priority == 'medium' %}bg-warning{% else %}bg-info{% endif %}">
+                {{ {'critical': 'Crítica', 'high': 'Alta', 
+                   'medium': 'Media', 'low': 'Baja'}[ticket.priority] }}
+            </span>
+        </h1>
+        <p class="text-muted">Creado {{ time_since(ticket.created_at) }}</p>
+    </div>
+    <div>
+        <a href="{{ url_for('tickets_page') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Volver
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Detalles del ticket -->
+    <div class="col-md-8 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header">
+                <h5 class="card-title mb-0">{{ ticket.title }}</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-4">
+                    <h6 class="text-muted mb-3">Descripción:</h6>
+                    <p class="whitespace-pre-line">{{ ticket.description }}</p>
+                </div>
+
+                <div class="mb-4">
+                    <h6 class="text-muted mb-3">Comentarios:</h6>
+                    {% if comments %}
+                        <div class="comments-container">
+                            {% for comment in comments %}
+                                <div class="d-flex mb-3">
+                                    <div class="flex-shrink-0">
+                                        <div class="avatar bg-light text-primary rounded-circle p-2">
+                                            <i class="bi bi-person-circle"></i>
+                                        </div>
+                                    </div>
+                                    <div class="flex-grow-1 ms-3">
+                                        <div class="comment-bubble p-3 bg-light rounded-3">
+                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                <strong>{{ comment.user_name }}</strong>
+                                                <span class="comment-time">{{ time_since(comment.created_at) }}</span>
+                                            </div>
+                                            <p class="mb-0">{{ comment.comment }}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted">No hay comentarios en este reporte.</p>
+                    {% endif %}
+
+                    <!-- Formulario para añadir comentario -->
+                    <form method="post" action="{{ url_for('add_ticket_comment', ticket_id=ticket.id) }}" class="mt-4">
+                        <div class="mb-3">
+                            <label for="comment" class="form-label">Añadir comentario:</label>
+                            <textarea class="form-control" id="comment" name="comment" rows="3" required></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-chat-dots"></i> Añadir Comentario
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Panel de información y acciones -->
+    <div class="col-md-4 mb-4">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Información</h5>
+            </div>
+            <div class="card-body">
+                <div class="row mb-2">
+                    <div class="col-5 fw-bold">Estado:</div>
+                    <div class="col-7">
+                        <span class="badge {% if ticket.status == 'open' %}bg-info{% elif ticket.status == 'in_progress' %}bg-warning{% elif ticket.status == 'resolved' %}bg-success{% else %}bg-secondary{% endif %}">
+                            {{ {'open': 'Abierto', 'in_progress': 'En progreso', 
+                               'resolved': 'Resuelto', 'closed': 'Cerrado'}[ticket.status] }}
+                        </span>
+                    </div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-5 fw-bold">Prioridad:</div>
+                    <div class="col-7">
+                        <span class="badge {% if ticket.priority == 'critical' %}bg-danger{% elif ticket.priority == 'high' %}bg-danger bg-opacity-75{% elif ticket.priority == 'medium' %}bg-warning{% else %}bg-info{% endif %}">
+                            {{ {'critical': 'Crítica', 'high': 'Alta', 
+                               'medium': 'Media', 'low': 'Baja'}[ticket.priority] }}
+                        </span>
+                    </div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-5 fw-bold">Creado por:</div>
+                    <div class="col-7">{{ ticket.created_by_name }}</div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-5 fw-bold">Asignado a:</div>
+                    <div class="col-7">
+                        {% if ticket.assigned_to_name %}
+                            {{ ticket.assigned_to_name }}
+                        {% else %}
+                            <span class="text-muted">No asignado</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-5 fw-bold">Activo:</div>
+                    <div class="col-7">
+                        {% if ticket.asset_name %}
+                            <a href="{{ url_for('asset_detail', asset_id=ticket.related_asset) }}">
+                                {{ ticket.asset_name }}
+                            </a>
+                        {% else %}
+                            <span class="text-muted">No asociado</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-5 fw-bold">Creado:</div>
+                    <div class="col-7">{{ format_datetime(ticket.created_at) }}</div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-5 fw-bold">Actualizado:</div>
+                    <div class="col-7">{{ format_datetime(ticket.updated_at) }}</div>
+                </div>
+                {% if ticket.resolved_at %}
+                <div class="row mb-2">
+                    <div class="col-5 fw-bold">Resuelto:</div>
+                    <div class="col-7">{{ format_datetime(ticket.resolved_at) }}</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Acciones</h5>
+            </div>
+            <div class="card-body">
+                <form method="post" action="{{ url_for('update_ticket', ticket_id=ticket.id) }}">
+                    <div class="mb-3">
+                        <label for="status" class="form-label">Cambiar estado:</label>
+                        <select class="form-select" id="status" name="status">
+                            <option value="open" {% if ticket.status == 'open' %}selected{% endif %}>Abierto</option>
+                            <option value="in_progress" {% if ticket.status == 'in_progress' %}selected{% endif %}>En progreso</option>
+                            <option value="resolved" {% if ticket.status == 'resolved' %}selected{% endif %}>Resuelto</option>
+                            <option value="closed" {% if ticket.status == 'closed' %}selected{% endif %}>Cerrado</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="priority" class="form-label">Cambiar prioridad:</label>
+                        <select class="form-select" id="priority" name="priority">
+                            <option value="low" {% if ticket.priority == 'low' %}selected{% endif %}>Baja</option>
+                            <option value="medium" {% if ticket.priority == 'medium' %}selected{% endif %}>Media</option>
+                            <option value="high" {% if ticket.priority == 'high' %}selected{% endif %}>Alta</option>
+                            <option value="critical" {% if ticket.priority == 'critical' %}selected{% endif %}>Crítica</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="assigned_to" class="form-label">Asignar a:</label>
+                        <select class="form-select" id="assigned_to" name="assigned_to">
+                            <option value="">No asignado</option>
+                            {% for user in users %}
+                                <option value="{{ user.id }}" {% if ticket.assigned_to == user.id %}selected{% endif %}>
+                                    {{ user.name }} ({{ translate_user_role(user.role) }})
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="related_asset" class="form-label">Activo relacionado:</label>
+                        <select class="form-select" id="related_asset" name="related_asset">
+                            <option value="">No relacionado con activo</option>
+                            {% for asset in assets %}
+                                <option value="{{ asset.id }}" {% if ticket.related_asset == asset.id %}selected{% endif %}>
+                                    {{ asset.name }} ({{ translate_asset_type(asset.type) }})
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="comment" class="form-label">Comentario sobre la actualización:</label>
+                        <textarea class="form-control" id="comment" name="comment" rows="2"></textarea>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary d-block w-100">
+                        <i class="bi bi-save"></i> Guardar Cambios
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+"""

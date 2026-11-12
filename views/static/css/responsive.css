@@ -1,0 +1,62 @@
+/* Shared responsive layout. Keep the existing colors and theme. */
+* { box-sizing: border-box; }
+html { scrollbar-gutter: stable; }
+body { min-width: 0; }
+.app-shell { min-height: 100vh; min-height: 100dvh; }
+.app-main { width: 0; min-width: 0; display: flex; flex-direction: column; }
+.page-content { flex: 1; width: 100%; max-width: 1600px; margin-inline: auto; padding: clamp(1rem, 2.5vw, 2rem); overflow-wrap: anywhere; }
+.page-content > .container, .page-content > .container-fluid { max-width: 100%; padding-inline: 0; }
+#sidebar { width: 250px; flex: 0 0 250px; position: sticky; top: 0; height: 100vh; height: 100dvh; overflow-y: auto; overscroll-behavior: contain; }
+#sidebar h5 { padding-right: 1rem; overflow-wrap: anywhere; }
+#sidebar .nav-link { min-height: 44px; display: flex; align-items: center; gap: .6rem; white-space: normal; text-align: left; }
+.mobile-header, .sidebar-close { display: none; }
+.sidebar-backdrop[hidden] { display: none; }
+.page-content .row > *, .page-content .card, .page-content .card-body { min-width: 0; }
+.page-content .d-flex { flex-wrap: wrap; gap: .65rem; }
+.page-content form .row { row-gap: 1rem; }
+.page-content h1, .page-content h2 { overflow-wrap: anywhere; }
+.page-content .display-5 { font-size: clamp(1.7rem, 3.2vw, 3rem); }
+.page-content img, .page-content video, .page-content audio { max-width: 100%; }
+.page-content canvas { max-width: 100%; }
+.page-content pre { max-width: 100%; overflow-x: auto; }
+.page-content .form-control, .page-content .form-select { min-width: 0; max-width: 100%; }
+.page-content .input-group { flex-wrap: nowrap; }
+.table-responsive { width: 100%; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; }
+.table-responsive > table { margin-bottom: .25rem; }
+.table-responsive th { white-space: nowrap; }
+.table-responsive td { min-width: 5rem; max-width: 24rem; overflow-wrap: anywhere; }
+.table-responsive td:last-child .btn { margin-block: .15rem; }
+.table-responsive:focus-visible, button:focus-visible, a:focus-visible { outline: 3px solid #79c5ff; outline-offset: 3px; }
+.app-main > footer { padding-inline: 1rem; overflow-wrap: anywhere; }
+body.auth-page .page-content { display: block; max-width: none; min-height: 100vh; padding: 0; }
+@media (max-width: 991.98px) {
+    .authenticated .app-shell { padding-top: 64px; }
+    .mobile-header { display: flex; align-items: center; gap: .8rem; position: fixed; inset: 0 0 auto; height: 64px; padding: .6rem 1rem; z-index: 1030; background: #102033; color: white; }
+    .mobile-header span { flex: 1; min-width: 0; }
+    .mobile-header .theme-toggle { color: #e7eef8; background: transparent; border-color: rgba(255,255,255,.25); white-space: nowrap; }
+    .topbar { display: none; }
+    .mobile-header span { font-size: .95rem; line-height: 1.2; overflow-wrap: anywhere; }
+    .mobile-header .btn { flex: 0 0 44px; height: 44px; font-size: 1.4rem; display: grid; place-content: center; }
+    #sidebar { position: fixed; inset: 0 auto 0 0; width: min(300px, 86vw); height: 100dvh; z-index: 1050; transform: translateX(-100%); visibility: hidden; background: #102033 !important; transition: transform .2s ease, visibility .2s; }
+    body.menu-open #sidebar { transform: translateX(0); visibility: visible; }
+    body.menu-open { overflow: hidden; }
+    .sidebar-close { display: block; margin-left: auto; margin-bottom: 1rem; min-width: 44px; min-height: 44px; }
+    .sidebar-backdrop { position: fixed; inset: 0; z-index: 1040; border: 0; background: rgb(0 0 0 / 55%); }
+    .page-content .col-md-3 { flex: 0 0 auto; width: 50%; }
+}
+@media (max-width: 575.98px) {
+    .page-content { padding: 1rem; }
+    .page-content .col-md-3 { width: 100%; }
+    .page-content .card-body.p-4 { padding: 1rem !important; }
+    .page-content .card-body.py-5 { padding-block: 1.75rem !important; }
+    .page-content .mt-5 { margin-top: 1.5rem !important; }
+    .page-content .btn { min-height: 44px; white-space: normal; }
+    .page-content .form-control, .page-content .form-select { font-size: 16px; min-height: 44px; }
+    .page-content .d-flex.justify-content-between > h1, .page-content .d-flex.justify-content-between > h2 { width: 100%; }
+    .page-content form.mb-3.d-flex > .form-select { width: 100% !important; }
+    .page-content .table-responsive > table:not(.table-borderless) { min-width: 620px; }
+    .auth-page .page-content > .row > * { padding-inline: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+    #sidebar, .app-main, .card { transition: none !important; }
+}

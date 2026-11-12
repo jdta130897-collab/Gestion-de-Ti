@@ -1,0 +1,163 @@
+{% extends 'base.html' %}
+
+{% block title %}Gestión de Activos - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">Gestión de Activos</h1>
+        {% if can_manage_assets %}
+        <a href="{{ url_for('create_asset') }}" class="btn btn-primary">
+            <i class="bi bi-plus-lg"></i> Nuevo Activo
+        </a>
+        {% endif %}
+    </div>
+
+    <!-- Filtros -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <form method="get" action="{{ url_for('assets_page') }}" class="row g-3">
+                <div class="col-md-3">
+                    <label for="filter_type" class="form-label">Tipo</label>
+                    <select class="form-select" id="filter_type" name="type">
+                        <option value="">Todos</option>
+                        {% for type in asset_types %}
+                        <option value="{{ type.id }}" {% if request.args.get('type')==type.id %}selected{% endif %}>{{ translate_asset_type(type.id) }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="filter_status" class="form-label">Estado</label>
+                    <select class="form-select" id="filter_status" name="status">
+                        <option value="">Todos</option>
+                        {% for status in asset_statuses %}
+                        <option value="{{ status.id }}" {% if request.args.get('status')==status.id %}selected{% endif
+                            %}>{{ translate_asset_status(status.id) }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="filter_name" class="form-label">Buscar</label>
+                    <input type="text" class="form-control" id="filter_name" name="search"
+                        placeholder="Nombre del activo" value="{{ request.args.get('search', '') }}">
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-funnel-fill"></i> Filtrar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Tabla de activos -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            {% if assets %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Nombre</th>
+                            <th>Tipo</th>
+                            <th>Estado</th>
+                            <th>Fecha de Compra</th>
+                            <th>Asignado a</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for asset in assets %}
+                        <tr>
+                            <td>{{ asset.id }}</td>
+                            <td>{{ asset.name }}</td>
+                            <td>
+                                {% if asset.type == 'hardware' %}
+                                <span class="badge bg-primary">Equipo físico</span>
+                                {% elif asset.type == 'software' %}
+                                <span class="badge bg-success">Programa informático</span>
+                                {% elif asset.type == 'network' %}
+                                <span class="badge bg-info">Red</span>
+                                {% elif asset.type == 'peripheral' %}
+                                <span class="badge bg-warning">Periférico</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Otro</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if asset.status == 'active' %}
+                                <span class="badge bg-success">Activo</span>
+                                {% elif asset.status == 'maintenance' %}
+                                <span class="badge bg-warning">Mantenimiento</span>
+                                {% elif asset.status == 'retired' %}
+                                <span class="badge bg-danger">Retirado</span>
+                                {% elif asset.status == 'storage' %}
+                                <span class="badge bg-secondary">Almacenado</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ format_date(asset.purchase_date) }}</td>
+                            <td>{{ asset.assigned_to_name or '-' }}</td>
+                            <td>
+                                <div class="row-actions">
+                                    <a href="{{ url_for('view_asset', asset_id=asset.id) }}" class="btn icon-btn view" title="Ver detalles" aria-label="Ver detalles">
+                                        <i class="bi bi-eye-fill"></i>
+                                    </a>
+                                    {% if can_manage_assets %}
+                                    <a href="{{ url_for('edit_asset', asset_id=asset.id) }}" class="btn icon-btn edit" title="Editar" aria-label="Editar activo">
+                                        <i class="bi bi-pencil-fill"></i>
+                                    </a>
+                                    <button type="button" class="btn icon-btn delete" data-bs-toggle="modal"
+                                        data-bs-target="#deleteModal{{ asset.id }}" title="Eliminar" aria-label="Eliminar activo">
+                                        <i class="bi bi-trash3-fill"></i>
+                                    </button>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Modal de confirmación para eliminar -->
+                                <div class="modal fade" id="deleteModal{{ asset.id }}" tabindex="-1"
+                                    aria-labelledby="deleteModalLabel{{ asset.id }}" aria-hidden="true">
+                                    <div class="modal-dialog">
+                                        <div class="modal-content">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title" id="deleteModalLabel{{ asset.id }}">Confirmar
+                                                    Eliminación</h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal"
+                                                    aria-label="Close"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                ¿Estás seguro de que deseas eliminar el activo <strong>{{ asset.name
+                                                    }}</strong>?
+                                                <p class="text-danger mt-3">Esta acción no se puede deshacer.</p>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-secondary"
+                                                    data-bs-dismiss="modal">Cancelar</button>
+                                                <form action="{{ url_for('delete_asset', asset_id=asset.id) }}"
+                                                    method="post">
+                                                    <button type="submit" class="btn btn-danger">Eliminar</button>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-4">
+                <p class="text-muted">No se encontraron activos.</p>
+                {% if can_manage_assets %}
+                <a href="{{ url_for('create_asset') }}" class="btn btn-primary">
+                    <i class="bi bi-plus-lg"></i> Crear Nuevo Activo
+                </a>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

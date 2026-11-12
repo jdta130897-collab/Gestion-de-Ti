@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+
+{% block title %}Editar Activo - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Editar Activo: {{ asset.name }}</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" action="{{ url_for('edit_asset', asset_id=asset.id) }}">
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Nombre *</label>
+                            <input type="text" class="form-control" id="name" name="name" value="{{ asset.name }}"
+                                required maxlength="100">
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="type" class="form-label">Tipo *</label>
+                                <select class="form-select" id="type" name="type" required>
+                                    <option value="">Seleccionar tipo</option>
+                                    {% for type in asset_types %}
+                                    <option value="{{ type.id }}" {% if asset.type==type.id %}selected{% endif %}>{{ translate_asset_type(type.id) }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="status" class="form-label">Estado *</label>
+                                <select class="form-select" id="status" name="status" required>
+                                    <option value="">Seleccionar estado</option>
+                                    {% for status in asset_statuses %}
+                                    <option value="{{ status.id }}" {% if asset.status==status.id %}selected{% endif %}>
+                                        {{ translate_asset_status(status.id) }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="purchase_date" class="form-label">Fecha de Compra *</label>
+                                <input type="date" class="form-control" id="purchase_date" name="purchase_date"
+                                    value="{{ format_date(asset.purchase_date, '%Y-%m-%d') }}" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="assigned_to" class="form-label">Asignado a</label>
+                                <select class="form-select" id="assigned_to" name="assigned_to">
+                                    <option value="">No asignado</option>
+                                    {% for user in users %}
+                                    <option value="{{ user.id }}" {% if asset.assigned_to==user.id %}selected{% endif
+                                        %}>{{ user.name }} ({{ translate_user_role(user.role) }})</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between mt-4">
+                            <a href="{{ url_for('assets_page') }}" class="btn btn-secondary">
+                                <i class="bi bi-arrow-left"></i> Volver
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check-lg"></i> Guardar Cambios
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

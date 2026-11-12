@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+
+{% block title %}Registro - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="card auth-card">
+    <div class="card-header">
+        <div class="feature-icon"><i class="bi bi-person-plus"></i></div>
+        <p class="eyebrow">Acceso</p>
+        <h4 class="mb-0">{{ app_name }}</h4>
+    </div>
+    <div class="card-body p-4 pt-2">
+        <h1 class="h5 text-center mb-4">Crear cuenta</h1>
+                
+                <form method="post" action="{{ url_for('register') }}">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Nombre Completo</label>
+                        <input type="text" class="form-control" id="name" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Correo Electrónico</label>
+                        <input type="email" class="form-control" id="email" name="email" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Contraseña</label>
+                        <input type="password" class="form-control" id="password" name="password" required 
+                               minlength="8" aria-describedby="passwordHelp">
+                        <div id="passwordHelp" class="form-text">La contraseña debe tener al menos 8 caracteres.</div>
+                    </div>
+                    <div class="mb-4">
+                        <label for="password_confirm" class="form-label">Confirmar Contraseña</label>
+                        <input type="password" class="form-control" id="password_confirm" name="password_confirm" required>
+                    </div>
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">Registrarse</button>
+                    </div>
+                </form>
+            </div>
+    <div class="card-footer text-center py-3">
+        <p class="mb-0">¿Ya tienes una cuenta? <a href="{{ url_for('login') }}">Iniciar sesión</a></p>
+    </div>
+</div>
+{% endblock %}

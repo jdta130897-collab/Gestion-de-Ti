@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+
+{% block title %}Agregar Métrica{% endblock %}
+
+{% block content %}
+<h2>Agregar Nueva Métrica de Monitoreo</h2>
+
+<form method="POST">
+    <div class="mb-3"><label class="form-label">Activo</label>
+    <select name="asset_id" class="form-select" required>
+    {% for asset in assets %}<option value="{{ asset.id }}">{{ asset.name }}</option>{% endfor %}
+    </select></div>
+    <div class="mb-3">
+        <label for="name" class="form-label">Nombre</label>
+        <input type="text" name="name" class="form-control" required>
+    </div>
+
+    <div class="mb-3">
+        <label for="value" class="form-label">Valor</label>
+        <input type="number" step="any" name="value" class="form-control" required>
+    </div>
+
+    <div class="mb-3">
+        <label for="unit" class="form-label">Unidad</label>
+        <input type="text" name="unit" class="form-control">
+    </div>
+
+    <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Guardar</button>
+    <a href="{{ url_for('monitoring_page') }}" class="btn btn-secondary"><i class="bi bi-x-lg"></i> Cancelar</a>
+</form>
+{% endblock %}
