@@ -166,6 +166,9 @@ class AuthService:
     
     def _create_api_keys_table_if_not_exists(self):
         """Crea la tabla de API keys si no existe."""
+        if self.db.is_postgres:
+            # En Supabase el esquema se prepara mediante migraciones, no en cada petición.
+            return
         query = """
             CREATE TABLE IF NOT EXISTS api_keys (
                 id INT AUTO_INCREMENT PRIMARY KEY,
