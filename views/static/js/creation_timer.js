@@ -4,7 +4,7 @@ class CreationTimer {
         this.started = null; this.submitted = false;
         this.value = root.querySelector('[data-timer-value]');
         this.status = root.querySelector('[data-timer-status]');
-        root.addEventListener('input', () => this.start().catch(() => {}));
+        if (channel === 'manual') root.addEventListener('input', () => this.start().catch(() => {}));
         window.addEventListener('pagehide', () => {
             if (this.attempt && !this.submitted) navigator.sendBeacon('/api/measurements/' + this.attempt + '/abandon', '');
         });

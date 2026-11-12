@@ -5,7 +5,8 @@ load_dotenv()
 
 # Configuración de la aplicación
 APP_NAME = "Sistema de Gestión TI"
-APP_VERSION = "1.0.0"
+from utils.release import SOFTWARE_VERSION
+APP_VERSION = SOFTWARE_VERSION
 DEBUG = os.getenv("DEBUG", "False") == "True"
 
 # Configuración de la base de datos

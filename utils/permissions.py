@@ -2,10 +2,10 @@ from flask import session
 
 ROLE_LABELS = {
     "super_admin": "Superadministrador",
-    "admin": "Administrador de TI",
-    "manager": "Responsable de área",
-    "technician": "Técnico de TI",
-    "user": "Solicitante",
+    "admin": "Trabajador (rol anterior)",
+    "manager": "Encargado de área",
+    "technician": "Trabajador",
+    "user": "Trabajador",
 }
 
 def current_role():
@@ -21,10 +21,16 @@ def can_view_assets():
     return is_super_admin() or (is_ti() and current_role() in ("admin", "manager", "technician"))
 
 def can_assign_tickets():
-    return is_super_admin() or (is_ti() and current_role() in ("admin", "manager"))
+    return is_ti() and current_role() == 'manager'
 
 def can_work_tickets():
-    return is_super_admin() or (is_ti() and current_role() in ("admin", "manager", "technician"))
+    return is_ti() and current_role() != 'super_admin'
+
+def can_edit_ticket(ticket):
+    if not can_work_tickets() or ticket.get('status') in ('resolved','closed'):
+        return False
+    return ticket.get('destination_area_id') == session.get('area_id') and (
+        current_role() == 'manager' or ticket.get('assigned_to') == session.get('user_id'))
 
 def can_delete_tickets():
     return current_role() == "super_admin"
@@ -36,11 +42,12 @@ def owns_ticket(ticket):
     return ticket.get("created_by") == session.get("user_id")
 
 def can_see_ticket(ticket):
-    if can_work_tickets():
+    if is_super_admin():
         return True
-    if current_role() == "manager":
-        return bool(session.get("area_id")) and ticket.get("origin_area_id") == session.get("area_id")
-    return owns_ticket(ticket)
+    area = session.get('area_id')
+    if current_role() == 'manager' and area:
+        return area in (ticket.get('origin_area_id'), ticket.get('destination_area_id'))
+    return owns_ticket(ticket) or (bool(area) and ticket.get('destination_area_id') == area and ticket.get('assigned_to') == session.get('user_id'))
 
 def as_template_context():
     role = current_role()
@@ -54,6 +61,7 @@ def as_template_context():
         "can_view_assets": can_view_assets(),
         "can_assign_tickets": can_assign_tickets(),
         "can_work_tickets": can_work_tickets(),
+        "can_edit_ticket": can_edit_ticket,
         "can_delete_tickets": can_delete_tickets(),
         "can_monitor": can_monitor(),
     }

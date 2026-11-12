@@ -10,6 +10,7 @@ import sys
 import time
 import urllib.request
 import uuid
+from urllib.parse import urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import websockets
@@ -20,6 +21,7 @@ from services.area_service import AreaService
 from controllers.ticket_controller import TicketController
 
 root=Path(__file__).resolve().parents[1]
+base_url=os.getenv('BROWSER_TEST_BASE_URL','http://127.0.0.1:5000').rstrip('/')
 out=root/'.runtime/browser-insights'
 out.mkdir(parents=True,exist_ok=True)
 chrome=Path(os.environ['ProgramFiles'])/'Google/Chrome/Application/chrome.exe'
@@ -77,13 +79,22 @@ async def run():
                 await asyncio.sleep(.2)
             raise AssertionError('Tiempo agotado: '+code)
         async def navigate(path):
-            await call('Page.navigate',{'url':'http://127.0.0.1:5000'+path})
+            await call('Page.navigate',{'url':base_url+path})
             await wait("document.readyState==='complete'")
         async def screenshot(name):
             result=await call('Page.captureScreenshot',{'format':'png','captureBeyondViewport':False})
             (out/name).write_bytes(base64.b64decode(result['data']))
         await call('Network.enable')
-        await call('Network.setCookie',{'name':'session','value':cookie,'domain':'127.0.0.1','path':'/'})
+        await call('Network.setCookie',{'name':'session','value':cookie,'domain':urlsplit(base_url).hostname,'path':'/','secure':base_url.startswith('https:')})
+        for width in (320,360,390,430):
+            await call('Emulation.setDeviceMetricsOverride',{'width':width,'height':844,'deviceScaleFactor':1,'mobile':True})
+            for path in ('/dashboard','/tickets','/tickets/create','/chatbot'):
+                await navigate(path)
+                check(await evaluate('document.documentElement.scrollWidth<=innerWidth'),f'Pantalla {path} sin desbordamiento a {width}px')
+            await evaluate("document.getElementById('menu-toggle').click()")
+            check(await evaluate("document.body.classList.contains('menu-open')"),f'Menú táctil abre a {width}px')
+            await evaluate("document.getElementById('menu-close').click()")
+            check(await evaluate("!document.body.classList.contains('menu-open')"),f'Menú táctil cierra a {width}px')
         await call('Emulation.setDeviceMetricsOverride',{'width':1440,'height':1000,'deviceScaleFactor':1,'mobile':False})
         await navigate('/tickets/create')
         await wait("typeof CreationTimer==='function'")
@@ -98,7 +109,7 @@ async def run():
         rows=db.execute_query('SELECT id FROM tickets WHERE created_by=%s',(uid,))
         check(len(rows)==1,'Formulario medido se guarda sin duplicados')
         ticket_id=rows[0]['id']
-        check(db.execute_query("SELECT id FROM creation_attempts WHERE ticket_id=%s AND outcome='success'",(ticket_id,)),'Medición del navegador persiste en MySQL')
+        check(db.execute_query("SELECT id FROM creation_attempts WHERE ticket_id=%s AND outcome='success'",(ticket_id,)),'Medición del navegador persiste en la base de datos')
         await navigate('/dashboard')
         await wait("document.getElementById('metric-count')?.textContent==='1'")
         check(await evaluate("typeof Chart==='function' && [...document.querySelectorAll('canvas')].every(c=>Chart.getChart(c))"),'Siete gráficos activos sin errores de inicialización')
@@ -131,8 +142,10 @@ async def run():
         await call('Emulation.setDeviceMetricsOverride',{'width':1440,'height':1000,'deviceScaleFactor':1,'mobile':False})
         await navigate('/chatbot')
         await wait("typeof CreationTimer==='function'")
-        await call('Fetch.enable',{'patterns':[{'urlPattern':'*/api/tickets/voz','requestStage':'Request'}]})
         await evaluate("document.getElementById('start-btn').click()")
+        check(await evaluate("document.getElementById('status').textContent.includes('Autoriza') && !document.getElementById('start-btn').disabled"),'Grabación exige autorizar la conservación privada antes de activar el micrófono')
+        await call('Fetch.enable',{'patterns':[{'urlPattern':'*/api/tickets/voz','requestStage':'Request'}]})
+        await evaluate("document.getElementById('retain-audio').checked=true;document.getElementById('start-btn').click()")
         await wait("document.getElementById('status').textContent.includes('Grabando')")
         check(await evaluate("!document.getElementById('stop-btn').disabled && document.getElementById('start-btn').disabled"),'Grabador inicia con temporizador y evita doble inicio')
         await screenshot('voice-recording.png')

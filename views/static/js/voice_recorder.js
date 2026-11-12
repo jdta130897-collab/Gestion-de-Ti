@@ -39,6 +39,11 @@
         } catch (_) { /* La animación base sigue disponible sin análisis de audio. */ }
     };
     start.addEventListener('click', async () => {
+        if (!root.querySelector('[name=retain_audio]').checked) {
+            status.textContent = 'Autoriza la conservación privada del audio antes de iniciar.';
+            root.querySelector('[name=retain_audio]').focus();
+            return;
+        }
         start.disabled = true;
         setState('requesting');
         if (timer.submitted) timer.reset();
@@ -61,6 +66,7 @@
                 timer.status.textContent = 'Procesando audio y creando la solicitud…';
                 const form = new FormData(); form.append('audio', new Blob(chunks, {type:mimeType}), 'grabacion.webm');
                 form.append('attempt_id', timer.attempt);
+                form.append('retain_audio','1');
                 form.append('request_kind', root.querySelector('[name=request_kind]').value);
                 const origin = root.querySelector('[name=origin_area_id]');
                 if (origin) form.append('origin_area_id', origin.value);

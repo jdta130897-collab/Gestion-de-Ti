@@ -3,6 +3,7 @@ import sys
 from gtts import gTTS
 from datetime import datetime, date
 from dotenv import load_dotenv
+from utils.release import SOFTWARE_VERSION, BUILD_COMMIT
 load_dotenv()
 if os.getenv('VERCEL') and (not os.getenv('DATABASE_URL') or not os.getenv('SECRET_KEY') or os.getenv('SECRET_KEY') == 'clave_secreta_predeterminada'):
     raise RuntimeError('Configura DATABASE_URL y una SECRET_KEY privada antes del despliegue.')
@@ -190,6 +191,8 @@ app.register_blueprint(areas_bp)
 from controllers.insight_routes import insights_bp
 from services.measurement_service import measure_submission
 app.register_blueprint(insights_bp)
+from controllers.recording_routes import recordings_bp
+app.register_blueprint(recordings_bp)
 
 
 # Variables globales para templates
@@ -207,7 +210,7 @@ def utility_processor():
         "translate_ticket_priority": translate_ticket_priority,
         "get_asset_badge_color": get_asset_badge_color,
         "app_name": os.getenv("APP_NAME", "Sistema de Gestión TI"),
-        "app_version": os.getenv("APP_VERSION", "1.0.0"),
+        "app_version": SOFTWARE_VERSION,
         **as_template_context(),
         "available_areas": AreaService.all(active_only=True) if session.get('user_id') and is_super_admin() else [],
     }
@@ -826,14 +829,17 @@ def view_ticket(ticket_id):
         return deny_access()
 
     if request.method == "POST":
+        from utils.permissions import can_edit_ticket
+        if not can_edit_ticket(ticket):
+            return deny_access()
         comment_text = request.form.get("comment")
         user_id = session.get("user_id")
 
         if comment_text and user_id:
-            TicketController.add_comment(
+            comment_result = TicketController.add_comment(
                 ticket_id, {"comment": comment_text, "user_id": user_id}
             )
-            flash("Comentario agregado correctamente.", "success")
+            flash(comment_result['message'], 'success' if comment_result['status']=='success' else 'error')
             return redirect(url_for("view_ticket", ticket_id=ticket_id))
         else:
             flash("Debe ingresar un comentario válido.", "error")
@@ -894,11 +900,18 @@ def edit_ticket(ticket_id):
     ticket = ticket_data["ticket"]  # Este es el diccionario del ticket real
     comments = ticket_data["comments"]
 
+    from utils.permissions import can_edit_ticket
+    if not can_edit_ticket(ticket):
+        return deny_access()
+    if ticket['status'] in ('resolved', 'closed'):
+        flash('Un ticket resuelto o cerrado no puede editarse.', 'warning')
+        return redirect(url_for('view_ticket', ticket_id=ticket_id))
     if request.method == "POST":
         ticket_data = {
             "title": request.form.get("subject"),  # Ajustado para coincidir con el formulario
             "description": request.form.get("description"),
-            "priority": request.form.get("priority"),
+            "priority": request.form.get("priority", ticket["priority"]),
+            "request_kind": request.form.get("request_kind", ticket["request_kind"]),
             "status": request.form.get("status"),
             "update_comment": request.form.get("update_comment"),
             "updated_by": session.get("user_id")
@@ -920,7 +933,7 @@ def edit_ticket(ticket_id):
     statuses = ["open", "in_progress", "resolved", "closed"]
     assignees = []
     if can_assign_tickets() and UserController:
-        assignees = Database().execute_query("SELECT u.id,u.name,u.role FROM users u JOIN areas a ON a.id=u.area_id WHERE u.is_active=TRUE AND a.code='TI' AND u.role IN ('admin','manager','technician')")
+        assignees = Database().execute_query("SELECT u.id,u.name,u.role FROM users u WHERE u.is_active=TRUE AND u.area_id=%s AND u.role<>'super_admin'", (ticket['destination_area_id'],))
     return render_template("tickets/edit.html", ticket=ticket, comments=comments, ticket_id=ticket_id, priorities=priorities, statuses=statuses, assignees=assignees)
     if "user_id" not in session:
         return redirect(url_for("login"))
@@ -942,7 +955,8 @@ def edit_ticket(ticket_id):
         ticket_data = {
             "title": request.form.get("title"),
             "description": request.form.get("description"),
-            "priority": request.form.get("priority"),
+            "priority": request.form.get("priority", ticket["priority"]),
+            "request_kind": request.form.get("request_kind", ticket["request_kind"]),
             "status": request.form.get("status"),
             "assigned_to": request.form.get("assigned_to") or None,
             "update_comment": request.form.get("update_comment"),
@@ -974,7 +988,8 @@ def edit_ticket(ticket_id):
         ticket_data = {
             "title": request.form.get("title"),
             "description": request.form.get("description"),
-            "priority": request.form.get("priority"),
+            "priority": request.form.get("priority", ticket["priority"]),
+            "request_kind": request.form.get("request_kind", ticket["request_kind"]),
             "status": request.form.get("status"),
             "assigned_to": request.form.get("assigned_to") or None,
             "update_comment": request.form.get("update_comment"),
@@ -1005,7 +1020,8 @@ def edit_ticket(ticket_id):
         ticket_data = {
             "subject": request.form.get("subject"),
             "description": request.form.get("description"),
-            "priority": request.form.get("priority"),
+            "priority": request.form.get("priority", ticket["priority"]),
+            "request_kind": request.form.get("request_kind", ticket["request_kind"]),
             "status": request.form.get("status"),
         }
 
@@ -1301,7 +1317,7 @@ def forbidden(e):
 def healthz():
     try:
         Database().execute_query('SELECT 1 AS ready')
-        return jsonify(status='ok'), 200
+        return jsonify(status='ok', version=SOFTWARE_VERSION, commit=BUILD_COMMIT), 200
     except Exception:
         return jsonify(status='unavailable'), 503
 

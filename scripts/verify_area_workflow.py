@@ -123,7 +123,7 @@ try:
     check(TicketController.get_ticket(incident['id'])['data']['ticket']['status'] == 'closed', 'Cierre de atención')
     with patch('controllers.ticket_controller.voice_service.transcribe_audio', return_value='Solicito asistencia importante para configurar el equipo de mi área.'):
         for endpoint in ('/api/tickets/voz', '/api/tickets/audio'):
-            response = foreign.post(endpoint, data={'audio': (io.BytesIO(b'audio simulado'), 'prueba.wav'), 'request_kind': 'request', 'origin_area_id': a, 'user_id': first_id}, content_type='multipart/form-data')
+            response = foreign.post(endpoint, data={'retain_audio':'1','audio': (io.BytesIO(b'audio simulado'), 'prueba.wav'), 'request_kind': 'request', 'origin_area_id': a, 'user_id': first_id}, content_type='multipart/form-data')
             body = response.get_json()
             rid = body.get('ticket_id') or body.get('id')
             if rid:

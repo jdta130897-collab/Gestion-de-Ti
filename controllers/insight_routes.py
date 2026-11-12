@@ -64,13 +64,13 @@ def csv_report():
         return jsonify(error=str(error)), 400
     stream = io.StringIO(newline='')
     writer = csv.writer(stream, delimiter=';')
-    writer.writerow(['Intento', 'Reporte', 'Área', 'Canal', 'Tipo', 'Resultado', 'Inicio UTC', 'Preparación (s)', 'Procesamiento (s)', 'Total (s)'])
+    writer.writerow(['Intento', 'Reporte', 'Área', 'Canal', 'Tipo', 'Resultado', 'Inicio UTC', 'Preparación (s)', 'Procesamiento (s)', 'Total (s)', 'Versión', 'Participante codificado', 'Commit'])
     outcomes = {'started':'Iniciado','processing':'Procesando','success':'Exitoso','failed':'Fallido','abandoned':'Abandonado'}
     for row in rows:
         name = row['area_name']
         if name.startswith(('=', '+', '-', '@')):
             name = "'" + name
-        writer.writerow([row['id'], row['ticket_id'] or '', name, 'Voz' if row['channel']=='voice' else 'Manual', 'Pedido' if row['request_kind']=='request' else 'Incidencia', outcomes[row['outcome']], row['started_at'].isoformat(), *[round(float(row[k])/1000,3) if row[k] is not None else '' for k in ('preparation_ms','processing_ms','total_ms')]])
+        writer.writerow([row['id'], row['ticket_id'] or '', name, 'Voz' if row['channel']=='voice' else 'Manual', 'Pedido' if row['request_kind']=='request' else 'Incidencia', outcomes[row['outcome']], row['started_at'].isoformat(), *[round(float(row[k])/1000,3) if row[k] is not None else '' for k in ('preparation_ms','processing_ms','total_ms')],row.get('software_version') or 'Sin identificar',row.get('participant_code') or '',row.get('build_commit') or ''])
     return Response('\ufeff'+stream.getvalue(), content_type='text/csv; charset=utf-8', headers={'Content-Disposition':'attachment; filename="mediciones-voz-vs-manual.csv"'})
 
 

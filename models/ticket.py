@@ -31,11 +31,11 @@ class Ticket(BaseModel):
             # Actualiza un ticket existente
             query = """
                 UPDATE tickets
-                SET title = %s, description = %s, status = %s, priority = %s,
+                SET title = %s, description = %s, status = %s, priority = %s, request_kind = %s,
                     assigned_to = %s, related_asset = %s, updated_at = %s, resolved_at = %s
                 WHERE id = %s
             """
-            params = (self.title, self.description, self.status, self.priority,
+            params = (self.title, self.description, self.status, self.priority, self.request_kind,
                      self.assigned_to, self.related_asset, datetime.now(),
                      self.resolved_at, self.id)
             self.db.execute_update(query, params)
@@ -60,7 +60,7 @@ class Ticket(BaseModel):
         """Obtiene un ticket por su ID."""
         query = """
             SELECT id, title, description, status, priority, created_by,
-                   assigned_to, related_asset, created_at, updated_at, resolved_at
+                   assigned_to, related_asset, created_at, updated_at, resolved_at, origin_area_id, destination_area_id, request_kind
             FROM tickets
             WHERE id = %s
         """
@@ -78,6 +78,7 @@ class Ticket(BaseModel):
                 assigned_to=ticket_data["assigned_to"],
                 related_asset=ticket_data["related_asset"],
                 resolved_at=ticket_data["resolved_at"],
+                origin_area_id=ticket_data["origin_area_id"], destination_area_id=ticket_data["destination_area_id"], request_kind=ticket_data["request_kind"],
             )
             ticket.created_at = ticket_data["created_at"]
             ticket.updated_at = ticket_data["updated_at"]

@@ -87,7 +87,7 @@ class UserController:
                 return {"status": "error", "message": "Usuario no encontrado"}
 
             from services.area_service import AreaService
-            AreaService.validate_membership(user_data.get('role', existing_user['role']), user_data.get('area_id', existing_user.get('area_id')))
+            AreaService.validate_membership(user_data.get('role', existing_user['role']), user_data.get('area_id', existing_user.get('area_id')), user_id)
             if existing_user['role'] == 'super_admin' and (user_data.get('role', 'super_admin') != 'super_admin' or not user_data.get('is_active', True)):
                 if len(User.db.execute_query("SELECT id FROM users WHERE role='super_admin' AND is_active=TRUE")) <= 1:
                     return {'status': 'error', 'message': 'Debe existir al menos un superadministrador activo.'}

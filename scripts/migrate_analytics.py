@@ -32,6 +32,8 @@ def migrate():
         INDEX ix_notification_inbox(user_id, read_at, created_at)
     ) ENGINE=InnoDB''')
     print('Mediciones y notificaciones listas. Los tiempos previos permanecen sin medir.')
+    from scripts.migrate_private_audio import migrate as migrate_audio
+    migrate_audio()
 
 
 if __name__ == '__main__':

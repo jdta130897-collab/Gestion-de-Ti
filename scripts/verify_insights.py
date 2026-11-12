@@ -64,7 +64,7 @@ try:
     check(len(db.execute_query('SELECT id FROM tickets WHERE title=%s',(payload['subject'],)))==1,'Reenvío del mismo intento no duplica solicitudes')
     aid_voice=attempt(client,'voice',2)
     with patch('controllers.ticket_controller.voice_service.transcribe_audio',return_value='Solicito acceso importante a un programa para mi trabajo del área.'):
-        response=client.post('/api/tickets/voz',data={'attempt_id':aid_voice,'request_kind':'request','audio':(io.BytesIO(b'fixture'),'audio.webm')},content_type='multipart/form-data')
+        response=client.post('/api/tickets/voz',data={'retain_audio':'1','attempt_id':aid_voice,'request_kind':'request','audio':(io.BytesIO(b'fixture'),'audio.webm')},content_type='multipart/form-data')
     if response.json.get('ticket_id'):tickets.append(response.json['ticket_id'])
     check(response.status_code==201 and response.json.get('total_ms')>=2000,'Voz registra el tiempo completo y confirma el guardado')
     summary=client.get('/api/analytics').json
@@ -78,7 +78,7 @@ try:
     db.execute_update('UPDATE creation_attempts SET total_ms=3000 WHERE id=%s',(aid_voice,))
     failed=attempt(client,'voice',1)
     with patch('controllers.ticket_controller.voice_service.transcribe_audio',side_effect=ValueError('Fallo simulado del proveedor')):
-        response=client.post('/api/tickets/voz',data={'attempt_id':failed,'audio':(io.BytesIO(b'fixture'),'fallo.webm')},content_type='multipart/form-data')
+        response=client.post('/api/tickets/voz',data={'retain_audio':'1','attempt_id':failed,'audio':(io.BytesIO(b'fixture'),'fallo.webm')},content_type='multipart/form-data')
     check(response.status_code==400,'Fallo de transcripción devuelve error')
     summary=client.get('/api/analytics').json
     check(summary['channels']['voice']['failed']==1 and summary['channels']['voice']['success_rate']==50,'Fallos incluidos en tasa de éxito')

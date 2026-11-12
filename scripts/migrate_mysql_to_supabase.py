@@ -16,7 +16,7 @@ sys.path.insert(0, str(root))
 load_dotenv(root / '.env')
 from scripts.migrate_postgres import migrate
 
-TABLES = ('areas','users','assets','tickets','ticket_comments','monitoring_data','api_keys','creation_attempts','notifications')
+TABLES = ('areas','users','assets','tickets','ticket_comments','monitoring_data','api_keys','creation_attempts','notifications','research_participants','voice_recordings')
 
 
 def transfer():
@@ -27,12 +27,17 @@ def transfer():
     try:
         source.start_transaction(consistent_snapshot=True, readonly=True)
         cursor = source.cursor(dictionary=True)
+        cursor.execute('SHOW TABLES')
+        available={next(iter(row.values())) for row in cursor.fetchall()}
         with psycopg.connect(os.environ['DATABASE_URL'], prepare_threshold=None) as target:
             for table in TABLES:
                 count = target.execute(sql.SQL('SELECT COUNT(*) FROM {}').format(sql.Identifier(table))).fetchone()[0]
                 if count:
                     raise RuntimeError('Destino con datos: se cancela la copia sin sobrescribir registros.')
             for table in TABLES:
+                if table not in available and table in ('research_participants','voice_recordings'):
+                    counts[table]=0
+                    continue
                 cursor.execute('SELECT * FROM ' + table)
                 rows = cursor.fetchall()
                 for row in rows:
@@ -41,7 +46,7 @@ def transfer():
                     statement = sql.SQL('INSERT INTO {} ({}) VALUES ({})').format(sql.Identifier(table),
                         sql.SQL(',').join(map(sql.Identifier, row)), sql.SQL(',').join(sql.Placeholder() for _ in row))
                     target.execute(statement, list(row.values()))
-                if table != 'creation_attempts':
+                if table not in ('creation_attempts','research_participants','voice_recordings'):
                     target.execute(sql.SQL("SELECT setval(pg_get_serial_sequence(%s,'id'), COALESCE(MAX(id),1), COUNT(*)>0) FROM {}").format(sql.Identifier(table)), (table,))
                 counts[table] = target.execute(sql.SQL('SELECT COUNT(*) FROM {}').format(sql.Identifier(table))).fetchone()[0]
                 if counts[table] != len(rows):

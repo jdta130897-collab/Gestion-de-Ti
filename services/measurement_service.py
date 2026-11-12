@@ -5,6 +5,7 @@ import uuid
 from flask import request, session, g, jsonify, redirect, url_for, flash
 from config.database import Database
 from services.area_service import AreaService
+from utils.release import SOFTWARE_VERSION, BUILD_COMMIT
 
 
 def utcnow():
@@ -26,7 +27,7 @@ class MeasurementService:
         # Reiniciar un intento significa abandonar el anterior, no contar un éxito.
         db.execute_update("UPDATE creation_attempts SET outcome='abandoned',finished_at=%s WHERE user_id=%s AND channel=%s AND outcome='started'", (utcnow(), session['user_id'], channel))
         attempt_id = str(uuid.uuid4())
-        db.execute_update('INSERT INTO creation_attempts (id,user_id,origin_area_id,channel,request_kind,started_at) VALUES (%s,%s,%s,%s,%s,%s)', (attempt_id, session['user_id'], area_id, channel, kind, utcnow()))
+        db.execute_update('INSERT INTO creation_attempts (id,user_id,origin_area_id,channel,request_kind,started_at,software_version,build_commit) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)', (attempt_id, session['user_id'], area_id, channel, kind, utcnow(), SOFTWARE_VERSION, BUILD_COMMIT or None))
         return attempt_id
 
     @staticmethod
@@ -69,6 +70,11 @@ def measure_submission(channel):
             if request.method != 'POST':
                 return function(*args, **kwargs)
             attempt_id = request.form.get('attempt_id')
+            if channel == 'voice' and not attempt_id:
+                try:
+                    attempt_id = MeasurementService.start('voice',request.form.get('request_kind','incident'),request.form.get('origin_area_id'))
+                except (ValueError,TypeError) as error:
+                    return jsonify(error=str(error)),400
             # Clientes anteriores siguen operando, pero sus tiempos no se inventan.
             if not attempt_id:
                 return function(*args, **kwargs)
@@ -86,6 +92,7 @@ def measure_submission(channel):
                     return jsonify(mensaje='Reporte ya registrado', ticket_id=row['ticket_id'], total_ms=row['total_ms']), 200
                 return redirect(url_for('view_ticket', ticket_id=row['ticket_id']))
             started = perf_counter()
+            g.measurement_attempt_id = attempt_id
             g.created_ticket_id = None
             try:
                 result = function(*args, **kwargs)

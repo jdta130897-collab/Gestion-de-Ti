@@ -49,17 +49,10 @@
                         <label for="role" class="form-label">Rol *</label>
                         <select class="form-select" id="role" name="role" required>
                             <option value="">Seleccionar rol</option>
-                            <option value="admin" {% if user and user.role == 'admin' %}selected{% endif %}>Administrador</option>
-                            <option value="manager" {% if user and user.role == 'manager' %}selected{% endif %}>Gerente</option>
-                            <option value="technician" {% if user and user.role == 'technician' %}selected{% endif %}>Técnico</option>
-                            <option value="user" {% if user and user.role == 'user' %}selected{% endif %}>Usuario</option>
+                            <option value="manager" {% if user and user.role == 'manager' %}selected{% endif %}>Encargado de área</option>
+                            <option value="user" {% if user and user.role == 'user' %}selected{% endif %}>Trabajador</option>
                         </select>
-                        <div class="form-text">
-                            <strong>Administrador:</strong> Acceso total al sistema<br>
-                            <strong>Gerente:</strong> Gestión de activos y asignación de reportes<br>
-                            <strong>Técnico:</strong> Gestión de reportes<br>
-                            <strong>Usuario:</strong> Creación de reportes y consulta de activos asignados
-                        </div>
+                        <div class="form-text">Un encargado por área; los demás integrantes son trabajadores. Solo el encargado asigna responsables de su área.</div>
                     </div>
                     
                     <div class="d-grid gap-2">

@@ -1,0 +1,10 @@
+{% extends 'base.html' %}
+{% block title %}Audios privados{% endblock %}
+{% block content %}
+<header class="page-head"><div><p class="eyebrow">Registro de voz</p><h1>Audios privados</h1></div><a class="btn btn-secondary" href="{{ url_for('chatbot_view') }}">Volver a grabación</a></header>
+<p>Solo puedes consultar tus grabaciones. El superadministrador puede revisar todas. Los códigos de participante son seudónimos; la cuenta sigue vinculada internamente.</p>
+<div class="table-responsive"><table class="table"><thead><tr><th>Participante</th><th>Fecha UTC</th><th>Versión</th><th>Resultado</th><th>Reporte</th><th>Audio</th></tr></thead><tbody>
+{% for recording in recordings %}<tr><td>{{ recording.participant_code }}</td><td>{{ format_datetime(recording.created_at) }}</td><td>{{ recording.software_version }}</td><td>{{ {'success':'Creado','failed':'Fallido','processing':'Procesando'}.get(recording.outcome,recording.outcome) }}</td><td>{% if recording.ticket_id %}<a href="{{ url_for('view_ticket',ticket_id=recording.ticket_id) }}">#{{ recording.ticket_id }}</a>{% else %}Sin reporte{% endif %}</td><td><a class="btn btn-secondary" href="{{ url_for('recordings.download',recording_id=recording.id) }}">Descargar</a><form method="post" action="{{ url_for('recordings.delete',recording_id=recording.id) }}" onsubmit="return confirm('¿Eliminar permanentemente este audio? El reporte y su medición se conservan.')"><button class="btn btn-danger" type="submit">Eliminar audio</button></form><details><summary>Identificación de evidencia</summary><small>Intento: {{ recording.attempt_id }}<br>SHA-256: {{ recording.sha256 }}<br>Tamaño: {{ recording.byte_size }} bytes</small></details></td></tr>
+{% else %}<tr><td colspan="6">Todavía no hay audios conservados.</td></tr>{% endfor %}
+</tbody></table></div>
+{% endblock %}

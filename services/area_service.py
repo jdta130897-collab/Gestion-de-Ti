@@ -38,14 +38,18 @@ class AreaService:
         return db.execute_update('INSERT INTO areas (name,code) VALUES (%s,%s)', (name, code), return_id=True)
 
     @staticmethod
-    def validate_membership(role, area_id):
+    def validate_membership(role, area_id, user_id=None):
         if role not in ('super_admin', 'admin', 'manager', 'technician', 'user'):
             raise ValueError('Rol no válido.')
         area = AreaService.get(area_id) if area_id else None
         if not area or not area['is_active']:
             raise ValueError('Selecciona un área activa para el usuario.')
-        if role in ('admin', 'technician') and area['code'] != 'TI':
-            raise ValueError('Los administradores y técnicos de TI deben pertenecer al área TI.')
+        if role == 'manager':
+            existing = Database().execute_query("SELECT id FROM users WHERE area_id=%s AND role='manager' AND is_active=TRUE AND id<>%s", (area_id,user_id or 0))
+            if existing:
+                raise ValueError('Esta área ya tiene un encargado activo. Cambia primero el encargado anterior a trabajador.')
+        if role in ('admin','technician'):
+            raise ValueError('Selecciona Encargado de área o Trabajador; los roles anteriores ya no se asignan.')
 
     @staticmethod
     def user_scope(user_id):

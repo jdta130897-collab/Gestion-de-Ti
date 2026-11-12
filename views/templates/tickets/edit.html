@@ -23,13 +23,18 @@
 
     <div class="mb-3">
         <label for="priority" class="form-label">Prioridad</label>
-        <select name="priority" class="form-select" required>
+        <select name="priority" class="form-select" {% if ticket.assigned_to or ticket.classification_locked %}disabled{% endif %} required>
             {% for p in priorities %}
             <option value="{{ p }}" {% if ticket['priority']==p %}selected{% endif %}>{{ translate_ticket_priority(p) }}</option>
             {% endfor %}
         </select>
     </div>
 
+    <div class="mb-3"><label class="form-label">Tipo de solicitud</label>
+    <select name="request_kind" class="form-select" {% if ticket.assigned_to or ticket.classification_locked %}disabled{% endif %}>
+    <option value="incident" {% if ticket.request_kind == 'incident' %}selected{% endif %}>Incidencia</option>
+    <option value="request" {% if ticket.request_kind == 'request' %}selected{% endif %}>Pedido</option></select></div>
+    {% if ticket.assigned_to or ticket.classification_locked %}<p>La prioridad y el tipo están bloqueados desde la primera asignación.</p>{% endif %}
     {% if can_assign_tickets %}
     <div class="mb-3">
         <label for="assigned_to" class="form-label">Asignar a</label>

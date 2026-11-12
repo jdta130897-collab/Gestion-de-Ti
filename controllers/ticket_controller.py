@@ -8,6 +8,7 @@ from flask import Blueprint, request, jsonify
 from config.database import Database
 import os
 from services.notification_service import NotificationService
+from services.audio_archive import AudioArchive
 
 
 def notify(ticket_id, kind, message):
@@ -43,33 +44,23 @@ class TicketController:
     @staticmethod
     def create_ticket_from_audio(file_stream, user_id):
         """Crea un ticket a partir de un archivo de audio utilizando IA de voz."""
+        recording_id = None
         try:
+            if not has_request_context() or request.form.get('retain_audio') != '1':
+                raise ValueError('Autoriza la conservación privada del audio antes de grabar.')
             # 1. Guardar audio temporal
             temp_audio = voice_service.save_temp_audio(file_stream)
 
             try:
+                recording_id = AudioArchive.save(temp_audio,user_id,getattr(g,'measurement_attempt_id',None))
                 # 2. Transcribir audio a texto
                 texto = voice_service.transcribe_audio(temp_audio)
+                if not texto or not texto.strip():
+                    raise ValueError('No se detectó una descripción en el audio. Intenta hablar de nuevo.')
 
-                # 3. Analizar texto para prioridad y categoría
-                priority = "low"
-                category = "general"
-                texto_lower = texto.lower()
-
-                if "urgente" in texto_lower or "crítico" in texto_lower:
-                    priority = "critical"
-                elif "importante" in texto_lower or "rápido" in texto_lower:
-                    priority = "high"
-                elif "normal" in texto_lower:
-                    priority = "medium"
-
-                if "impresora" in texto_lower:
-                    category = "impresora"
-                elif "red" in texto_lower or "wifi" in texto_lower:
-                    category = "red"
-                elif "software" in texto_lower or "programa" in texto_lower:
-                    category = "software"
-
+                classification = voice_service.classify_ticket(texto)
+                priority = classification['priority']
+                category = classification['category']
                 # 4. Crear datos del reporte
                 ticket_data = {
                     "title": texto[:60] + "...",
@@ -78,18 +69,23 @@ class TicketController:
                     "created_by": user_id,
                     "assigned_to": None,
                     "related_asset": None,
-                    "initial_comment": "Creado desde transcripción de voz",
+                    "initial_comment": "Clasificado por voz (AssemblyAI LLM Gateway, " + os.getenv("ASSEMBLYAI_CLASSIFIER_MODEL", "qwen3.5-4b-32k-fast") + "): " + classification["reason"],
                     "channel": "voice",
-                    "request_kind": request.form.get('request_kind', 'incident') if has_request_context() else 'incident',
+                    "request_kind": classification['request_kind'],
                     "origin_area_id": request.form.get('origin_area_id', type=int) if has_request_context() else None,
                 }
 
-                return TicketController.create_ticket(ticket_data)
+                result = TicketController.create_ticket(ticket_data)
+                AudioArchive.finish(recording_id,ticket_id=result.get('id'),transcript=texto,
+                    error_code=None if result.get('id') else 'ticket_validation_failed')
+                return result
             finally:
                 if os.path.exists(temp_audio):
                     os.remove(temp_audio)
 
         except Exception as e:
+            if recording_id:
+                AudioArchive.finish(recording_id,error_code=type(e).__name__)
             return {"status": "error", "message": str(e)}
 
     @staticmethod
@@ -112,6 +108,8 @@ class TicketController:
             channel = ticket_data.get('channel', 'manual')
             if kind not in ('incident', 'request') or channel not in ('manual', 'voice'):
                 raise ValueError('Tipo de solicitud o canal no válido.')
+            if ticket_data.get('assigned_to'):
+                raise ValueError('Crea el ticket sin responsable; el encargado del área de destino debe asignarlo.')
             validation = validate_ticket(ticket_data)
             if not validation["valid"]:
                 return {"status": "error", "message": validation["errors"]}
@@ -166,25 +164,43 @@ class TicketController:
     @staticmethod
     def update_ticket(ticket_id, ticket_data):
         try:
-            if has_request_context() and session.get('user_id'):
-                from utils.permissions import can_work_tickets, can_assign_tickets
-                if not can_work_tickets():
-                    raise ValueError('Solo el equipo de TI puede atender los reportes.')
-                if 'assigned_to' in ticket_data and not can_assign_tickets():
-                    raise ValueError('No tienes permiso para asignar responsables.')
+            original = Ticket.get_ticket_with_details(ticket_id)
+            if not original:
+                raise ValueError('Reporte no encontrado.')
+            if original['status'] in ('resolved', 'closed'):
+                raise ValueError('Un ticket resuelto o cerrado no puede editarse.')
+            if has_request_context():
+                from services.area_service import AreaService
+                actor = AreaService.user_scope(session.get('user_id'))
+                if not actor or not actor['is_active'] or not actor['area_active']:
+                    raise ValueError('Usuario no autorizado.')
+                in_area = actor['area_code'] == 'TI' and actor['area_id'] == original['destination_area_id']
+                manager = in_area and actor['role'] == 'manager'
+                worker = in_area and str(original.get('assigned_to')) == str(actor['id'])
+                if not (manager or worker):
+                    raise ValueError('Solo el encargado del área de destino o el trabajador asignado puede atender este ticket.')
+                changed_assignment = 'assigned_to' in ticket_data and str(ticket_data['assigned_to'] or '') != str(original.get('assigned_to') or '')
+                if changed_assignment and not manager:
+                    raise ValueError('Solo el encargado del área de destino puede asignar responsables.')
+                ticket_data['updated_by'] = actor['id']
+            locked = original.get('classification_locked') or original.get('assigned_to')
+            for field in ('priority', 'request_kind'):
+                if field in ticket_data and ticket_data[field] != original[field] and locked:
+                    raise ValueError('La prioridad y el tipo quedan bloqueados desde la primera asignación.')
             if ticket_data.get('assigned_to'):
                 from services.area_service import AreaService
                 assignee = AreaService.user_scope(ticket_data['assigned_to'])
-                if not assignee or not assignee['is_active'] or assignee['area_code'] != 'TI' or assignee['role'] not in ('admin', 'manager', 'technician'):
-                    raise ValueError('Asigna el reporte a un integrante activo del equipo de TI.')
+                if not assignee or not assignee['is_active'] or not assignee['area_active'] or assignee['area_id'] != original['destination_area_id'] or assignee['role'] == 'super_admin':
+                    raise ValueError('El responsable debe ser un trabajador activo del área de destino.')
+            if ticket_data.get('status') in ('resolved','closed') and not (ticket_data.get('update_comment') or '').strip():
+                raise ValueError('Registra la solución antes de resolver o cerrar el ticket.')
             validation = validate_ticket(ticket_data, update=True)
-            if not validation["valid"]:
-                return {"status": "error", "message": validation["errors"]}
-
+            if not validation['valid']:
+                return {'status':'error','message':validation['errors']}
             ticket = Ticket.get_by_id(ticket_id)
-            if not ticket:
-                return {"status": "error", "message": "Reporte no encontrado"}
-
+            ticket.request_kind = ticket_data.get('request_kind', ticket.request_kind)
+            if ticket.request_kind not in ('incident','request'):
+                raise ValueError('Tipo de solicitud no válido.')
             ticket.title = ticket_data.get("title", ticket.title)
             ticket.description = ticket_data.get("description", ticket.description)
             ticket.priority = ticket_data.get("priority", ticket.priority)
@@ -226,6 +242,14 @@ class TicketController:
             if not ticket:
                 return {"status": "error", "message": "Reporte no encontrado"}
 
+            if ticket.status in ('resolved','closed'):
+                raise ValueError('Un ticket resuelto o cerrado no admite modificaciones ni comentarios.')
+            if has_request_context():
+                from services.area_service import AreaService
+                actor = AreaService.user_scope(session.get('user_id'))
+                allowed = actor and actor['is_active'] and actor['area_active'] and actor['area_code'] == 'TI' and actor['area_id'] == ticket.destination_area_id and (actor['role'] == 'manager' or actor['id'] == ticket.assigned_to)
+                if not allowed or comment_data.get('user_id') != session.get('user_id'):
+                    raise ValueError('Solo TI puede registrar el seguimiento del ticket.')
             user_id = comment_data.get("user_id")
             comment_text = comment_data.get("comment")
 

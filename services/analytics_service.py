@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from statistics import mean, median, stdev
 from flask import session
 from config.database import Database
-from utils.permissions import can_work_tickets
+from utils.permissions import is_super_admin
 
 
 class AnalyticsService:
@@ -26,7 +26,7 @@ class AnalyticsService:
 
     @staticmethod
     def scope(alias):
-        if can_work_tickets():
+        if is_super_admin():
             return '1=1', []
         if session['user_role'] == 'manager':
             return f'{alias}.origin_area_id=%s', [session['area_id']]
@@ -47,8 +47,9 @@ class AnalyticsService:
             clauses.append('m.started_at<%s'); params.append(filters['date_to']+timedelta(days=1,hours=5))
         if filters['kind']:
             clauses.append('m.request_kind=%s'); params.append(filters['kind'])
-        rows = db.execute_query('''SELECT m.*,a.name AS area_name FROM creation_attempts m
-            JOIN areas a ON a.id=m.origin_area_id WHERE ''' + ' AND '.join(clauses) + ' ORDER BY m.started_at', params)
+        rows = db.execute_query('''SELECT m.*,a.name AS area_name,p.code AS participant_code FROM creation_attempts m
+            JOIN areas a ON a.id=m.origin_area_id LEFT JOIN research_participants p ON p.user_id=m.user_id
+            WHERE ''' + ' AND '.join(clauses) + ' ORDER BY m.started_at', params)
         groups = {}
         for channel in ('voice', 'manual'):
             attempts = [r for r in rows if r['channel'] == channel]
@@ -90,7 +91,7 @@ class AnalyticsService:
             'unmeasured': sum(t['id'] not in measured_ids for t in tickets),
             'tickets_total': len(tickets), 'status': status, 'priority': priority,
             'daily': [{'day': k, **v} for k,v in daily.items()],
-            'scope': 'Todas las áreas' if can_work_tickets() else (session.get('area_name') if session['user_role']=='manager' else 'Tus solicitudes'),
+            'scope': 'Todas las áreas' if is_super_admin() else (session.get('area_name') if session['user_role']=='manager' else 'Tus solicitudes'),
             'methodology': 'Desde la primera interacción registrada por el servidor hasta la confirmación de creación. Incluye preparación, pausas, envío, transcripción y guardado. Solo los intentos exitosos con medición entran en los tiempos; tasa de éxito = éxitos / (éxitos + fallos). Fechas en horario de Lima. Comparación observacional: el tipo, la complejidad y las pausas pueden diferir; no demuestra causalidad.',
             'sample_note': 'Sin datos suficientes para comparar.' if reduction is None else ('Muestra pequeña: menos de 10 éxitos en uno de los canales.' if min(voice['success'], manual['success'])<10 else 'Interpreta los resultados según la complejidad de las solicitudes.'),
         }

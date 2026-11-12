@@ -9,3 +9,5 @@ assemblyai==1.8.2
 gTTS==2.5.4
 waitress==3.0.2
 psycopg[binary]==3.2.10
+
+requests==2.34.2
