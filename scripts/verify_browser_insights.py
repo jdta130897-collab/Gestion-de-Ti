@@ -93,7 +93,7 @@ async def run():
         await asyncio.sleep(.4)
         check(first!=await evaluate("document.querySelector('[data-timer-value]').textContent"),'Cronómetro manual avanza en navegador')
         await screenshot('manual-timer.png')
-        await evaluate("document.querySelector('form[data-creation-channel]').requestSubmit()")
+        await evaluate("document.querySelector('form[data-creation-channel] button[type=submit]').click()")
         await wait("location.pathname==='/tickets'")
         rows=db.execute_query('SELECT id FROM tickets WHERE created_by=%s',(uid,))
         check(len(rows)==1,'Formulario medido se guarda sin duplicados')

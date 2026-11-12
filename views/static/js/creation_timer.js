@@ -17,6 +17,7 @@ class CreationTimer {
             try {
                 const response = await fetch('/api/measurements/start', {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
+                    signal: AbortSignal.timeout(15000),
                     body: JSON.stringify({channel: this.channel, request_kind: this.root.querySelector('[name=request_kind]')?.value || 'incident', origin_area_id: this.root.querySelector('[name=origin_area_id]')?.value || null})
                 });
                 if (!response.ok || response.redirected) throw new Error('No se pudo iniciar la medición. Revisa tu sesión y vuelve a intentarlo.');
@@ -49,15 +50,28 @@ window.CreationTimer = CreationTimer;
 document.querySelectorAll('form[data-creation-channel="manual"]').forEach(form => {
     const timer = new CreationTimer(form, 'manual');
     form.addEventListener('submit', async event => {
-        if (timer.submitted) return;
         event.preventDefault();
         if (timer.sending) return;
+        if (!form.reportValidity()) return;
         timer.sending = true;
         try {
             await timer.start(); timer.submitted = true;
             timer.status.textContent = 'Guardando la solicitud…';
             form.querySelectorAll('button[type=submit]').forEach(button => button.disabled = true);
-            form.requestSubmit();
-        } catch (_) { timer.sending = false; /* Permite reintentar tras el error. */ }
+            // Enviar directamente: requestSubmit vuelve a disparar este mismo evento.
+            // Deshabilitar el botón durante ese ciclo puede cancelar el envío nativo.
+            HTMLFormElement.prototype.submit.call(form);
+            timer.navigationTimeout = setTimeout(() => {
+                timer.sending = false;
+                timer.submitted = false;
+                timer.status.textContent = 'El servidor aún no confirmó el guardado. Puedes reintentar sin duplicar el reporte.';
+                form.querySelectorAll('button[type=submit]').forEach(button => button.disabled = false);
+            }, 20000);
+        } catch (error) {
+            timer.sending = false;
+            timer.submitted = false;
+            timer.status.textContent = error.name === 'TimeoutError' ? 'No se pudo conectar con el servidor. Tu texto se conserva; vuelve a guardar.' : error.message;
+            form.querySelectorAll('button[type=submit]').forEach(button => button.disabled = false);
+        }
     });
 });
