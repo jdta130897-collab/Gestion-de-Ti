@@ -51,7 +51,15 @@ def can_see_ticket(ticket):
 
 def as_template_context():
     role = current_role()
+    code = (session.get('area_code') or '').upper()
+    name = (session.get('area_name') or '').lower()
+    rrhh = code in ('RRHH','RR.HH.','RH','HR') or 'humanos' in name
+    area_label = 'RR. HH.' if rrhh else (code or 'Áreas')
+    area_icon = 'bi-people-fill' if rrhh else ('bi-pc-display-horizontal' if code == 'TI' else 'bi-building')
     return {
+        'area_dashboard_is_rrhh': rrhh,
+        'area_dashboard_label': area_label,
+        'area_dashboard_icon': area_icon,
         "current_role": role,
         "can_manage_areas": is_super_admin(),
         "current_area_name": session.get("area_name", "Sin area"),

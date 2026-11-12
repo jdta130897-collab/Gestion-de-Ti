@@ -36,9 +36,9 @@
         <nav id="sidebar" aria-label="Navegacion principal">
             <button class="btn btn-outline-light sidebar-close" id="menu-close" type="button" aria-label="Cerrar menu"><i class="bi bi-x-lg"></i></button>
             <div class="brand">
-                <div class="brand-mark"><i class="bi bi-cpu"></i></div>
+                <div class="brand-mark"><i class="bi {{ 'bi-people-fill' if area_dashboard_is_rrhh else 'bi-cpu' }}"></i></div>
                 <div>
-                    <p class="brand-kicker">Consola TI</p>
+                    <p class="brand-kicker">Consola {{ 'RR. HH.' if area_dashboard_is_rrhh else 'TI' }}</p>
                     <h5 class="brand-name">{{ app_name }}</h5>
                 </div>
             </div>

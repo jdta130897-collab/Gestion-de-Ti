@@ -31,8 +31,8 @@
         </div>
     </div>
     <div class="hero-art" aria-hidden="true">
-        <i class="bi bi-pc-display-horizontal"></i>
-        <span>Operación TI</span>
+        <i class="bi {{ 'bi-people-fill' if area_dashboard_is_rrhh else 'bi-pc-display-horizontal' }}"></i>
+        <span>{{ 'Recursos Humanos' if area_dashboard_is_rrhh else 'Operación TI' }}</span>
     </div>
 </section>
 
