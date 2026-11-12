@@ -18,7 +18,7 @@ class CreationTimer {
                 const response = await fetch('/api/measurements/start', {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
                     signal: AbortSignal.timeout(15000),
-                    body: JSON.stringify({channel: this.channel, request_kind: this.root.querySelector('[name=request_kind]')?.value || 'incident', origin_area_id: this.root.querySelector('[name=origin_area_id]')?.value || null})
+                    body: JSON.stringify({channel: this.channel, request_kind: (this.root.querySelector('[name=request_kind]:checked') || this.root.querySelector('[name=request_kind]'))?.value || 'incident', origin_area_id: this.root.querySelector('[name=origin_area_id]')?.value || null})
                 });
                 if (!response.ok || response.redirected) throw new Error('No se pudo iniciar la medición. Revisa tu sesión y vuelve a intentarlo.');
                 const data = await response.json(); this.attempt = data.attempt_id;

@@ -1,35 +1,26 @@
-{% extends 'base.html' %}
-
-{% block title %}Nuevo Reporte{% endblock %}
-
+﻿{% extends 'base.html' %}
+{% block title %}Nueva solicitud{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/ticket-create.css') }}?v=1">{% endblock %}
 {% block content %}
-<h2>Crear Nuevo Reporte</h2>
-
-<form method="POST" data-creation-channel="manual">
-    {% include 'tickets/timer.html' %}
-    {% include 'tickets/request_fields.html' %}
-    <div class="mb-3">
-        <label for="subject" class="form-label">Asunto</label>
-        <input type="text" name="subject" class="form-control" required>
-    </div>
-
-    <div class="mb-3">
-        <label for="description" class="form-label">Descripción</label>
-        <textarea name="description" class="form-control" rows="4" required></textarea>
-    </div>
-
-    <div class="mb-3">
-        <label for="priority" class="form-label">Prioridad</label>
-        <select name="priority" class="form-select" required>
-            {% for p in priorities %}
-            <option value="{{ p }}">{{ translate_ticket_priority(p) }}</option>
-            {% endfor %}
-        </select>
-    </div>
-
-
-
-    <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Guardar Reporte</button>
-    <a href="{{ url_for('tickets_page') }}" class="btn btn-secondary"><i class="bi bi-x-lg"></i> Cancelar</a>
-</form>
+<div class="ticket-create">
+<header class="request-heading"><div><span class="eyebrow">MESA DE AYUDA · REGISTRO MANUAL</span><h1>Nueva solicitud</h1><p>Registra una incidencia o un pedido para el equipo de TI.</p></div><a href="{{ url_for('tickets_page') }}" class="btn btn-secondary"><i class="bi bi-arrow-left"></i> Volver a solicitudes</a></header>
+<form method="POST" data-creation-channel="manual" class="request-layout">
+<div class="request-main">
+<section class="request-section" aria-labelledby="type-title"><div class="section-heading"><span class="request-step">01</span><div><h2 id="type-title">¿Qué necesitas?</h2><p>Selecciona el tipo de atención.</p></div></div>
+<div class="request-types">
+<label class="request-choice"><input type="radio" name="request_kind" value="incident" checked required><span><i class="bi bi-tools" aria-hidden="true"></i><strong>Reportar una incidencia</strong><small>Algo dejó de funcionar o presenta un problema.</small></span></label>
+<label class="request-choice"><input type="radio" name="request_kind" value="request" required><span><i class="bi bi-box-seam" aria-hidden="true"></i><strong>Realizar un pedido</strong><small>Necesitas equipo, acceso o asistencia de TI.</small></span></label>
+</div></section>
+<section class="request-section" aria-labelledby="details-title"><div class="section-heading"><span class="request-step">02</span><div><h2 id="details-title">Detalles de la solicitud</h2><p>Comparte la información necesaria para atenderte.</p></div></div>
+<div class="mb-4"><label for="subject" class="form-label">Asunto *</label><input id="subject" type="text" name="subject" class="form-control" placeholder="Escribe un título breve para tu solicitud" required></div>
+<div class="mb-4"><label for="description" class="form-label">Descripción *</label><textarea id="description" name="description" class="form-control" rows="6" placeholder="Describe el problema o lo que necesitas solicitar…" required></textarea></div>
+<div class="request-priority"><div><label for="priority" class="form-label">Prioridad *</label><p>Selecciona el nivel de atención.</p></div><select id="priority" name="priority" class="form-select" required>{% for p in priorities %}<option value="{{ p }}">{{ translate_ticket_priority(p) }}</option>{% endfor %}</select></div>
+</section>
+<div class="request-actions"><span><i class="bi bi-send-check"></i> Tu solicitud será enviada a TI.</span><div><a href="{{ url_for('tickets_page') }}" class="btn btn-secondary">Cancelar</a><button type="submit" class="btn btn-primary"><i class="bi bi-send"></i> Enviar solicitud</button></div></div>
+</div>
+<aside class="request-sidebar" aria-label="Información del registro">
+<section class="request-section request-route"><span class="eyebrow">RUTA DE ATENCIÓN</span><div class="route-stop"><i class="bi bi-building" aria-hidden="true"></i><div><small>Área solicitante</small>{% if can_manage_areas %}<label for="origin_area_id" class="visually-hidden">Área solicitante</label><select id="origin_area_id" name="origin_area_id" class="form-select" required>{% for area in available_areas %}<option value="{{ area.id }}" {% if session.area_id == area.id %}selected{% endif %}>{{ area.name }}</option>{% endfor %}</select>{% else %}<strong>{{ current_area_name }}</strong>{% endif %}</div></div><div class="route-arrow"><i class="bi bi-arrow-down"></i></div><div class="route-stop"><i class="bi bi-pc-display" aria-hidden="true"></i><div><small>Equipo que te atenderá</small><strong>Tecnología de la información</strong></div></div></section>
+<section class="request-section request-clock"><h2><i class="bi bi-stopwatch"></i> Medición del registro</h2>{% include 'tickets/timer.html' %}</section>
+<p class="request-note"><i class="bi bi-info-circle"></i> Podrás consultar el estado y las respuestas desde el listado de solicitudes.</p>
+</aside></form></div>
 {% endblock %}
