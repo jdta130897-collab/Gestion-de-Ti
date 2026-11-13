@@ -19,12 +19,13 @@
   <div class="mb-3">
     <label class="form-label">Rol</label>
     <select name="role" class="form-select">
+      <option value="user" {% if user.role == 'user' %}selected{% endif %}>Trabajador</option>
+      <option value="manager" {% if user.role == 'manager' %}selected{% endif %}>Encargado de área</option>
       <option value="super_admin" {% if user is defined and user.role == 'super_admin' %}selected{% endif %}>Superadministrador</option>
-      <option value="user" {% if user.role == 'user' %}selected{% endif %}>Solicitante</option>
-      <option value="technician" {% if user.role == 'technician' %}selected{% endif %}>Técnico de TI</option>
-      <option value="manager" {% if user.role == 'manager' %}selected{% endif %}>Responsable de área</option>
-      <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Administrador de TI</option>
     </select>
+    {% if user.role in ('admin', 'technician') %}
+    <p class="form-text text-warning-emphasis mb-0">Cuenta con rol histórico anterior (<code>{{ translate_user_role(user.role) }}</code>); al guardar cambios debe asignarse a un rol vigente (Trabajador o Encargado de área).</p>
+    {% endif %}
   </div>
   <div class="mb-3 form-check">
     <input type="checkbox" name="is_active" class="form-check-input" id="isActive"

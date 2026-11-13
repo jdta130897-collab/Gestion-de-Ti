@@ -25,7 +25,8 @@
                     <h5 class="card-title mt-3">Reportar Problema por Voz</h5>
                     <p class="card-text">Graba tu problema y detén el audio cuando termines.</p>
                     {% include 'tickets/timer.html' %}
-                    {% include 'tickets/request_fields.html' %}<p class="small">Describe lo que necesitas. El asistente clasificará automáticamente el tipo de solicitud y su prioridad.</p>
+                    {% include 'tickets/request_fields.html' %}
+                    <p class="small text-start">Describe una necesidad concreta de soporte de TI: qué falla o qué necesitas, a quiénes afecta (solo tú, un área o varias áreas) y si puedes seguir trabajando con alternativa. Si falta alcance o urgencia, el sistema asignará una <strong>prioridad media provisional</strong> sujeta a revisión de TI. Si mencionas varias peticiones, se priorizará la principal (incidencia si hay fallo activo). Audios ajenos a TI o sin detalle técnico serán rechazados sin crear ticket.</p>
                     <div class="form-check text-start my-3">
                         <input class="form-check-input" type="checkbox" id="retain-audio" name="retain_audio" value="1">
                         <label class="form-check-label" for="retain-audio">Autorizo conservar este audio de forma privada, junto con su transcripción y el resultado del intento. Podremos acceder mi cuenta y el superadministrador.</label>
@@ -41,4 +42,4 @@
 </div>
 
 {% endblock %}
-{% block scripts %}<script src="{{ url_for('static', filename='js/voice_recorder.js') }}?v=4" defer></script>{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/voice_recorder.js') }}?v={{ app_version }}" defer></script>{% endblock %}

@@ -1,9 +1,10 @@
 <div class="mb-3">
-    <label for="request_kind" class="form-label">Tipo de solicitud</label>
+    <label for="request_kind" class="form-label">Tipo preliminar estimado (referencia previa)</label>
     <select id="request_kind" name="request_kind" class="form-select" required>
-        <option value="incident">Incidencia: reportar un problema</option>
-        <option value="request">Pedido: solicitar equipo, acceso o asistencia</option>
+        <option value="incident">Incidencia: fallo o degradación de un servicio existente</option>
+        <option value="request">Pedido: alta, acceso, equipo, instalación o cambio sin fallo</option>
     </select>
+    <div class="form-text">El clasificador automático determinará el tipo final a partir de tu audio.</div>
 </div>
 {% if can_manage_areas %}
 <div class="mb-3">

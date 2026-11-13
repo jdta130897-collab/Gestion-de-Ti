@@ -4,5 +4,5 @@
         <option value="">Selecciona un área</option>
         {% for area in available_areas %}<option value="{{ area.id }}" {% if user is defined and user.area_id == area.id %}selected{% endif %}>{{ area.name }} ({{ area.code }})</option>{% endfor %}
     </select>
-    <p class="form-text">Los administradores y técnicos de TI pertenecen a TI. Las demás áreas pueden tener responsables y solicitantes.</p>
+    <p class="form-text">Cada área admite un único encargado activo y sus trabajadores. Las solicitudes de todas las áreas se dirigen al área de TI.</p>
 </div>

@@ -1,7 +1,7 @@
-from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
 from config.database import Database
 from models.asset import BaseModel
+from utils.timezone import utc_now
 
 class User(BaseModel):
     """Modelo para gestionar usuarios del sistema."""
@@ -16,8 +16,9 @@ class User(BaseModel):
             self.set_password(password)
         self.role = role  # admin, manager, technician, user
         self.area_id = area_id
-        self.created_at = datetime.now()
-        self.updated_at = datetime.now()
+        now = utc_now()
+        self.created_at = now
+        self.updated_at = now
     
     def set_password(self, password):
         """Establece la contraseña encriptada."""
@@ -39,7 +40,7 @@ class User(BaseModel):
                 WHERE id = %s
             """
             params = (self.name, self.email, self.password_hash, self.role, self.area_id,
-                      datetime.now(), self.id)
+                      utc_now(), self.id)
             self.db.execute_update(query, params)
             return self.id
         else:

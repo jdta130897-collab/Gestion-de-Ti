@@ -1,25 +1,69 @@
 <section class="card mb-4 analytics-workspace" id="analytics-workspace">
     <div class="card-body">
-        <header class="page-toolbar"><div><p class="eyebrow">Medición de productividad</p><h2>Voz frente a escritura</h2><p class="text-muted mb-0" id="analytics-updated" role="status">Cargando estadísticas…</p></div>
-            <div class="d-flex gap-2 flex-wrap"><a id="analytics-csv" class="btn btn-secondary" href="/reports/analytics.csv"><i class="bi bi-filetype-csv"></i> Datos CSV</a><a id="analytics-report" class="btn btn-primary" href="/reports/analytics" target="_blank" rel="noopener"><i class="bi bi-file-earmark-bar-graph"></i> Informe / PDF</a><a id="analytics-html" class="btn btn-secondary" href="/reports/analytics?download=1">Descargar informe</a></div>
+        <header class="page-toolbar">
+            <div>
+                <p class="eyebrow">Investigación experimental vs. operación</p>
+                <h2>Voz frente a escritura</h2>
+                <p class="text-muted mb-0" id="analytics-updated" role="status">Cargando estadísticas…</p>
+            </div>
+            <div class="d-flex gap-2 flex-wrap">
+                <a id="analytics-csv" class="btn btn-secondary" href="/reports/analytics.csv"><i class="bi bi-filetype-csv"></i> Datos CSV</a>
+                <a id="analytics-bundle" class="btn btn-secondary" href="/reports/analytics-bundle.json"><i class="bi bi-braces"></i> JSON reproducible</a>
+                <a id="analytics-report" class="btn btn-primary" href="/reports/analytics" target="_blank" rel="noopener"><i class="bi bi-file-earmark-bar-graph"></i> Informe / PDF</a>
+                <a id="analytics-html" class="btn btn-secondary" href="/reports/analytics?download=1">Descargar informe</a>
+            </div>
         </header>
+
         <form id="analytics-filters" class="row g-3 align-items-end mb-4">
-            <div class="col-md-3"><label for="date_from" class="form-label">Desde</label><input class="form-control" type="date" id="date_from" name="date_from"></div>
-            <div class="col-md-3"><label for="date_to" class="form-label">Hasta</label><input class="form-control" type="date" id="date_to" name="date_to"></div>
-            <div class="col-md-3"><label for="analytics-kind" class="form-label">Tipo de solicitud</label><select class="form-select" id="analytics-kind" name="kind"><option value="">Todos</option><option value="incident">Incidencias</option><option value="request">Pedidos</option></select></div>
-            <div class="col-md-3"><button class="btn btn-primary" type="submit">Aplicar filtros</button><button class="btn btn-secondary" type="reset">Limpiar</button></div>
+            <div class="col-md-2"><label for="date_from" class="form-label">Desde (Lima)</label><input class="form-control" type="date" id="date_from" name="date_from"></div>
+            <div class="col-md-2"><label for="date_to" class="form-label">Hasta (Lima)</label><input class="form-control" type="date" id="date_to" name="date_to"></div>
+            <div class="col-md-2"><label for="analytics-kind" class="form-label">Tipo de solicitud</label><select class="form-select" id="analytics-kind" name="kind"><option value="">Todos</option><option value="incident">Incidencias</option><option value="request">Pedidos</option></select></div>
+            <div class="col-md-3">
+                <label for="analytics-scope" class="form-label">Alcance de indicadores</label>
+                <select class="form-select" id="analytics-scope" name="scope">
+                    <option value="auto">Alcance correspondiente al rol</option>
+                    <option value="personal">Solo mis datos personales</option>
+                    {% if can_manage_areas or current_role == 'manager' %}
+                    <option value="area">Operativo de área / TI</option>
+                    {% endif %}
+                    {% if can_manage_areas %}
+                    <option value="global">Global (todas las áreas)</option>
+                    {% endif %}
+                </select>
+            </div>
+            <div class="col-md-3"><label for="analytics-session" class="form-label">Sesión evaluación (opcional)</label><input class="form-control" type="text" id="analytics-session" name="evaluation_session_id" maxlength="64" placeholder="Ej. piloto-01"></div>
+            <div class="col-12 d-flex gap-2"><button class="btn btn-primary" type="submit">Aplicar filtros</button><button class="btn btn-secondary" type="reset">Limpiar</button></div>
         </form>
-        <div class="kpi-grid">
-            <article class="kpi sky"><p class="label">Promedio por voz</p><strong id="metric-voice">—</strong><small id="sample-voice">Sin mediciones</small></article>
-            <article class="kpi sand"><p class="label">Promedio manual</p><strong id="metric-manual">—</strong><small id="sample-manual">Sin mediciones</small></article>
-            <article class="kpi mint"><p class="label">Reducción de tiempo</p><strong id="metric-gain">—</strong><small>Voz respecto al promedio manual</small></article>
-            <article class="kpi rose"><p class="label">Registros medidos</p><strong id="metric-count">0</strong><small id="metric-unmeasured">Sin tiempos históricos estimados</small></article>
+
+        <div class="alert alert-light border mb-3 small" id="analytics-scope-banner">
+            <strong>Distinción de alcance (Personal vs. Operativo/Global):</strong>
+            <span id="analytics-scope-summary">Cargando alcance…</span>
         </div>
-        <div class="analytics-note" id="analytics-note"></div>
-        <p class="text-muted mt-2" id="analytics-methodology"></p>
-        <div class="table-responsive mt-3"><table class="table"><thead><tr><th>Indicador</th><th>Voz</th><th>Manual</th></tr></thead><tbody id="analytics-comparison"></tbody></table></div>
-        <div class="chart-grid mt-4">
-        {% for key,title in [('time','Tiempo total: promedio, mediana y P90'),('volume','Intentos y resultados'),('success','Tasa de éxito por canal'),('phases','Preparación y procesamiento'),('trend','Evolución diaria de registros medidos')] %}
+
+        <h3 class="h6 text-uppercase text-muted mb-2">Métricas experimentales de creación (Voz vs. Manual)</h3>
+        <div class="kpi-grid">
+            <article class="kpi sky"><p class="label">Promedio servidor (voz)</p><strong id="metric-voice">—</strong><small id="sample-voice">Sin mediciones</small></article>
+            <article class="kpi sand"><p class="label">Promedio servidor (manual)</p><strong id="metric-manual">—</strong><small id="sample-manual">Sin mediciones</small></article>
+            <article class="kpi mint"><p class="label">Reducción de tiempo</p><strong id="metric-gain">—</strong><small>Voz respecto al promedio manual (servidor)</small></article>
+            <article class="kpi rose"><p class="label">Intentos exitosos medidos</p><strong id="metric-count">0</strong><small id="metric-unmeasured">Sin tiempos históricos estimados</small></article>
+        </div>
+
+        <div class="analytics-note mt-3" id="analytics-note"></div>
+        <p class="text-muted mt-2 small" id="analytics-methodology"></p>
+        <div class="small text-muted border rounded p-2 mb-3" id="analytics-denominators">Cargando definiciones de denominadores…</div>
+
+        <div class="table-responsive mt-3">
+            <table class="table">
+                <thead><tr><th>Indicador de investigación</th><th>Voz</th><th>Manual</th></tr></thead>
+                <tbody id="analytics-comparison"></tbody>
+            </table>
+        </div>
+
+        <h3 class="h6 text-uppercase text-muted mt-4 mb-2">Métricas operativas de tickets (con y sin medición experimental)</h3>
+        <div class="small text-muted mb-2" id="analytics-operational-summary">Cargando resumen operativo…</div>
+
+        <div class="chart-grid mt-3">
+        {% for key,title in [('time','Tiempo total servidor: promedio, mediana y P90'),('volume','Intentos, éxitos, fallos, abandonos y pendientes'),('success','Tasa de éxito (sobre intentos completos)'),('phases','Preparación en cliente vs. procesamiento en servidor'),('trend','Evolución diaria (horario de Lima UTC-5)')] %}
             <article class="card chart-card"><div class="chart-heading"><h3>{{ title }}</h3><div class="chart-downloads"><button class="btn btn-secondary btn-sm" type="button" data-download-png="{{ key }}">PNG 4K</button><a class="btn btn-secondary btn-sm" data-download-svg="{{ key }}" href="/reports/chart.svg?chart={{ key }}">SVG</a></div></div><canvas id="analytics-{{ key }}" aria-label="{{ title }}" role="img"></canvas></article>
         {% endfor %}
         </div>

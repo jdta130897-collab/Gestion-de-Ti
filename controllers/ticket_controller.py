@@ -1,7 +1,8 @@
 from models.ticket import Ticket
 from utils.validators import validate_ticket
 from datetime import datetime
-from services.voice_service import VoiceService
+from time import perf_counter
+from services.voice_service import VoiceService, ClassificationRejectedError
 from flask import request, jsonify, has_request_context, session, g
 from services.ticket_service import TicketService
 from flask import Blueprint, request, jsonify
@@ -9,6 +10,11 @@ from config.database import Database
 import os
 from services.notification_service import NotificationService
 from services.audio_archive import AudioArchive
+from services.participant_service import ParticipantService
+from services.classification_trace_service import ClassificationTraceService
+from services.measurement_service import MeasurementService
+from utils.release import get_evaluation_session_id, PROMPT_VERSION
+from utils.timezone import utc_now
 
 
 def notify(ticket_id, kind, message):
@@ -42,9 +48,116 @@ class TicketController:
             return {"status": "error", "message": str(e)}
 
     @staticmethod
+    def _build_snapshot_payload(ticket_data, participant, ticket_id=None, attempt_id=None, error_code=None):
+        channel = ticket_data.get('channel', 'manual')
+        cls_data = ticket_data.get('_classification')
+        trace = ticket_data.get('_classifier_trace')
+        if channel == 'manual':
+            return {
+                'attempt_id': attempt_id,
+                'ticket_id': ticket_id,
+                'recording_id': None,
+                'user_id': ticket_data.get('created_by'),
+                'participant_id': participant['id'],
+                'participant_code': participant['code'],
+                'channel': 'manual',
+                'source_mode': 'manual_form',
+                'validated_payload_json': {
+                    'request_kind': ticket_data.get('request_kind', 'incident'),
+                    'priority': ticket_data.get('priority'),
+                },
+                'initial_request_kind': ticket_data.get('request_kind', 'incident'),
+                'initial_priority': ticket_data.get('priority'),
+                'classification_status': 'manual_selected',
+                'priority_source': 'manual_form',
+                'is_provisional': False,
+                'in_scope': True,
+                'scope_reason': 'ok',
+                'prompt_version': None,
+                'error_code': error_code,
+            }
+
+        source_mode = 'llm_voice' if trace else ('voice_rejected' if error_code in ('out_of_scope', 'insufficient_context') else ('voice_error' if error_code else 'simulated_voice'))
+        if error_code and not cls_data:
+            raw_json = trace.get('raw_response_text') if trace else None
+            parsed_json = trace.get('parsed_json') if trace else None
+            return {
+                'attempt_id': attempt_id,
+                'ticket_id': None,
+                'recording_id': ticket_data.get('recording_id'),
+                'user_id': ticket_data.get('created_by'),
+                'participant_id': participant['id'],
+                'participant_code': participant['code'],
+                'channel': 'voice',
+                'source_mode': 'voice_rejected' if error_code in ('out_of_scope', 'insufficient_context') else 'voice_error',
+                'transcript': ticket_data.get('transcript'),
+                'raw_classifier_json': raw_json,
+                'validated_payload_json': parsed_json,
+                'initial_request_kind': parsed_json.get('request_kind') if isinstance(parsed_json, dict) else None,
+                'initial_impact': parsed_json.get('impact') if isinstance(parsed_json, dict) else None,
+                'initial_urgency': parsed_json.get('urgency') if isinstance(parsed_json, dict) else None,
+                'initial_category': parsed_json.get('category') if isinstance(parsed_json, dict) else None,
+                'initial_reason': parsed_json.get('reason') if isinstance(parsed_json, dict) else None,
+                'classification_status': 'rejected' if error_code in ('out_of_scope', 'insufficient_context') else 'error',
+                'priority_source': 'rejected' if error_code in ('out_of_scope', 'insufficient_context') else 'error',
+                'is_provisional': False,
+                'has_mixed_requests': parsed_json.get('has_mixed_requests') if isinstance(parsed_json, dict) else None,
+                'in_scope': False if error_code in ('out_of_scope', 'insufficient_context') else None,
+                'scope_reason': error_code if error_code in ('out_of_scope', 'insufficient_context') else None,
+                'classifier_model': (trace or {}).get('classifier_model') or os.getenv('ASSEMBLYAI_CLASSIFIER_MODEL', 'qwen3.5-4b-32k-fast'),
+                'classifier_config_json': (trace or {}).get('classifier_config'),
+                'prompt_version': (trace or {}).get('prompt_version') or PROMPT_VERSION,
+                'error_code': error_code,
+            }
+
+        cls_data = cls_data or {}
+        impact = cls_data.get('impact', 'unknown')
+        urgency = cls_data.get('urgency', 'unknown')
+        cls_status = cls_data.get('classification_status') or (
+            'provisional' if ('unknown' in (impact, urgency) and ('impact' in cls_data or 'urgency' in cls_data))
+            else ('definitive' if impact in ('individual', 'area', 'organization') and urgency in ('routine', 'degraded', 'blocked') else 'simulated')
+        )
+        prio_source = cls_data.get('priority_source') or (
+            'provisional_fallback' if cls_status == 'provisional'
+            else ('matrix' if cls_status == 'definitive' else 'simulated')
+        )
+        return {
+            'attempt_id': attempt_id,
+            'ticket_id': ticket_id,
+            'recording_id': ticket_data.get('recording_id'),
+            'user_id': ticket_data.get('created_by'),
+            'participant_id': participant['id'],
+            'participant_code': participant['code'],
+            'channel': 'voice',
+            'source_mode': source_mode,
+            'transcript': ticket_data.get('transcript'),
+            'raw_classifier_json': (trace or {}).get('raw_response_text') or cls_data,
+            'validated_payload_json': cls_data,
+            'initial_request_kind': cls_data.get('request_kind') or ticket_data.get('request_kind'),
+            'initial_impact': cls_data.get('impact'),
+            'initial_urgency': cls_data.get('urgency'),
+            'initial_category': cls_data.get('category'),
+            'initial_reason': cls_data.get('reason'),
+            'initial_priority': cls_data.get('priority') or ticket_data.get('priority'),
+            'classification_status': cls_status,
+            'priority_source': prio_source,
+            'is_provisional': cls_status == 'provisional' or bool(cls_data.get('is_fallback')),
+            'has_mixed_requests': cls_data.get('has_mixed_requests'),
+            'in_scope': cls_data.get('in_scope', True),
+            'scope_reason': cls_data.get('scope_reason', 'ok'),
+            'classifier_model': (trace or {}).get('classifier_model') or os.getenv('ASSEMBLYAI_CLASSIFIER_MODEL', 'qwen3.5-4b-32k-fast'),
+            'classifier_config_json': (trace or {}).get('classifier_config') or {'mode': 'simulated_or_patched'},
+            'prompt_version': (trace or {}).get('prompt_version') or PROMPT_VERSION,
+            'error_code': error_code,
+        }
+
+    @staticmethod
     def create_ticket_from_audio(file_stream, user_id):
         """Crea un ticket a partir de un archivo de audio utilizando IA de voz."""
         recording_id = None
+        texto = None
+        attempt_id = getattr(g, 'measurement_attempt_id', None) if has_request_context() else None
+        voice_service.clear_last_trace()
         try:
             if not has_request_context() or request.form.get('retain_audio') != '1':
                 raise ValueError('Autoriza la conservación privada del audio antes de grabar.')
@@ -52,15 +165,49 @@ class TicketController:
             temp_audio = voice_service.save_temp_audio(file_stream)
 
             try:
-                recording_id = AudioArchive.save(temp_audio,user_id,getattr(g,'measurement_attempt_id',None))
+                recording_id = AudioArchive.save(temp_audio, user_id, attempt_id)
                 # 2. Transcribir audio a texto
                 texto = voice_service.transcribe_audio(temp_audio)
                 if not texto or not texto.strip():
                     raise ValueError('No se detectó una descripción en el audio. Intenta hablar de nuevo.')
 
+                voice_service.clear_last_trace()
                 classification = voice_service.classify_ticket(texto)
+                trace = voice_service.get_last_trace()
                 priority = classification['priority']
                 category = classification['category']
+                impact = classification.get('impact', 'unknown')
+                urgency = classification.get('urgency', 'unknown')
+                has_mixed = bool(classification.get('has_mixed_requests', False))
+                classification_status = classification.get('classification_status')
+                if not classification_status:
+                    if impact in ('individual', 'area', 'organization') and urgency in ('routine', 'degraded', 'blocked'):
+                        classification_status = 'definitive'
+                    elif 'unknown' in (impact, urgency) and ('impact' in classification or 'urgency' in classification):
+                        classification_status = 'provisional'
+                    else:
+                        classification_status = 'provisional' if classification.get('is_fallback') else 'unverified'
+                priority_source = classification.get('priority_source') or (
+                    'provisional_fallback' if classification_status == 'provisional'
+                    else ('matrix' if classification_status == 'definitive' else 'external_or_mock')
+                )
+                model_name = os.getenv("ASSEMBLYAI_CLASSIFIER_MODEL", "qwen3.5-4b-32k-fast")
+                status_label = (
+                    "PROVISIONAL (prioridad media de respaldo por información incompleta; no es predicción validada; revisar antes de asignar)"
+                    if classification_status == "provisional"
+                    else (
+                        "Definitiva (matriz impacto x urgencia)"
+                        if classification_status == "definitive"
+                        else "No verificada / externa"
+                    )
+                )
+                mixed_label = " | Solicitudes múltiples detectadas (revisar posible desglose)" if has_mixed else ""
+                initial_comment = (
+                    f"Clasificado por voz (AssemblyAI LLM Gateway, {model_name}) "
+                    f"[{status_label} | tipo={classification['request_kind']} | impacto={impact} | "
+                    f"urgencia={urgency} | origen_prioridad={priority_source}{mixed_label}]: "
+                    f"{classification['reason']}"
+                )
                 # 4. Crear datos del reporte
                 ticket_data = {
                     "title": texto[:60] + "...",
@@ -69,23 +216,64 @@ class TicketController:
                     "created_by": user_id,
                     "assigned_to": None,
                     "related_asset": None,
-                    "initial_comment": "Clasificado por voz (AssemblyAI LLM Gateway, " + os.getenv("ASSEMBLYAI_CLASSIFIER_MODEL", "qwen3.5-4b-32k-fast") + "): " + classification["reason"],
+                    "initial_comment": initial_comment,
                     "channel": "voice",
                     "request_kind": classification['request_kind'],
                     "origin_area_id": request.form.get('origin_area_id', type=int) if has_request_context() else None,
+                    "attempt_id": attempt_id,
+                    "recording_id": recording_id,
+                    "transcript": texto,
+                    "_classification": classification,
+                    "_classifier_trace": trace,
                 }
 
                 result = TicketController.create_ticket(ticket_data)
-                AudioArchive.finish(recording_id,ticket_id=result.get('id'),transcript=texto,
-                    error_code=None if result.get('id') else 'ticket_validation_failed')
+                if result.get('status') == 'success':
+                    result['classification_status'] = classification_status
+                    result['priority_source'] = priority_source
+                    result['has_mixed_requests'] = has_mixed
+                    result['request_kind'] = classification['request_kind']
+                    result['priority'] = priority
+                else:
+                    if has_request_context():
+                        g.measurement_error_reason = 'ticket_validation_failed'
+                    AudioArchive.finish(recording_id, ticket_id=None, transcript=texto, error_code='ticket_validation_failed')
+                    try:
+                        participant = ParticipantService.ensure_for_user(user_id)
+                        snap = TicketController._build_snapshot_payload(ticket_data, participant, ticket_id=None, attempt_id=attempt_id, error_code='ticket_validation_failed')
+                        ClassificationTraceService.save_snapshot(snap)
+                    except Exception:
+                        pass
                 return result
             finally:
                 if os.path.exists(temp_audio):
                     os.remove(temp_audio)
 
         except Exception as e:
+            err_code = getattr(e, 'error_code', type(e).__name__)
+            if has_request_context():
+                g.measurement_error_reason = err_code
             if recording_id:
-                AudioArchive.finish(recording_id,error_code=type(e).__name__)
+                AudioArchive.finish(recording_id, transcript=texto, error_code=err_code)
+            if user_id and (recording_id or texto):
+                try:
+                    participant = ParticipantService.ensure_for_user(user_id)
+                    snap = TicketController._build_snapshot_payload(
+                        {
+                            'created_by': user_id,
+                            'channel': 'voice',
+                            'recording_id': recording_id,
+                            'transcript': texto,
+                            '_classifier_trace': voice_service.get_last_trace(),
+                        },
+                        participant,
+                        ticket_id=None,
+                        attempt_id=attempt_id,
+                        error_code=err_code,
+                    )
+                    ClassificationTraceService.save_snapshot(snap)
+                except Exception:
+                    pass
             return {"status": "error", "message": str(e)}
 
     @staticmethod
@@ -112,34 +300,99 @@ class TicketController:
                 raise ValueError('Crea el ticket sin responsable; el encargado del área de destino debe asignarlo.')
             validation = validate_ticket(ticket_data)
             if not validation["valid"]:
+                if has_request_context():
+                    g.measurement_error_reason = 'ticket_validation_failed'
                 return {"status": "error", "message": validation["errors"]}
 
-            ticket = Ticket(
-                title=ticket_data.get("title"),
-                description=ticket_data.get("description"),
-                status="open",
-                priority=ticket_data.get("priority"),
-                created_by=ticket_data.get("created_by"),
-                assigned_to=ticket_data.get("assigned_to"),
-                related_asset=ticket_data.get("related_asset"),
-                origin_area_id=origin, destination_area_id=AreaService.ti_id(),
-                request_kind=kind, channel=channel,
-            )
+            attempt_id = ticket_data.get('attempt_id') or (getattr(g, 'measurement_attempt_id', None) if has_request_context() else None)
+            recording_id = ticket_data.get('recording_id')
+            transcript = ticket_data.get('transcript')
+            eval_session = ticket_data.get('evaluation_session_id') if 'evaluation_session_id' in ticket_data else get_evaluation_session_id()
+            dest_area_id = AreaService.ti_id()
 
-            ticket_id = ticket.save()
+            db = Database()
+            ticket_id = None
+            total_ms = None
+            already_persisted = False
 
-            initial_comment = ticket_data.get("initial_comment")
-            if initial_comment and ticket_id:
-                ticket.add_comment(ticket_data.get("created_by"), initial_comment)
+            with db.transaction() as tx:
+                participant = ParticipantService.ensure_for_user(ticket_data.get('created_by'), tx=tx)
+                if attempt_id:
+                    existing = tx.query(
+                        'SELECT outcome, ticket_id, evaluation_session_id FROM creation_attempts WHERE id=%s AND user_id=%s FOR UPDATE',
+                        (attempt_id, ticket_data.get('created_by')),
+                    )
+                    if existing:
+                        if eval_session is None and existing[0].get('evaluation_session_id'):
+                            eval_session = existing[0]['evaluation_session_id']
+                            ticket_data['evaluation_session_id'] = eval_session
+                        if existing[0]['outcome'] == 'success' and existing[0]['ticket_id']:
+                            ticket_id = existing[0]['ticket_id']
+                            already_persisted = True
+
+                if not already_persisted:
+                    ticket = Ticket(
+                        title=ticket_data.get("title"),
+                        description=ticket_data.get("description"),
+                        status="open",
+                        priority=ticket_data.get("priority"),
+                        created_by=ticket_data.get("created_by"),
+                        assigned_to=ticket_data.get("assigned_to"),
+                        related_asset=ticket_data.get("related_asset"),
+                        origin_area_id=origin,
+                        destination_area_id=dest_area_id,
+                        request_kind=kind,
+                        channel=channel,
+                        attempt_id=attempt_id,
+                        evaluation_session_id=eval_session,
+                    )
+                    ticket_id = ticket.save(tx=tx)
+
+                    initial_comment = ticket_data.get("initial_comment")
+                    if initial_comment and ticket_id:
+                        ticket.add_comment(ticket_data.get("created_by"), initial_comment, tx=tx)
+
+                    snap_payload = TicketController._build_snapshot_payload(
+                        ticket_data, participant, ticket_id=ticket_id, attempt_id=attempt_id
+                    )
+                    ClassificationTraceService.save_snapshot(snap_payload, tx=tx)
+
+                    if recording_id:
+                        changed_rec = AudioArchive.finish(
+                            recording_id, ticket_id=ticket_id, transcript=transcript, error_code=None, tx=tx
+                        )
+                        if not changed_rec:
+                            raise RuntimeError('No se pudo vincular la grabación de audio al ticket.')
+
+                    if attempt_id and has_request_context() and getattr(g, 'measurement_attempt_id', None) == attempt_id and hasattr(g, 'measurement_started_perf'):
+                        changed_att, total_ms = MeasurementService.finish_in_tx(
+                            tx,
+                            attempt_id,
+                            session['user_id'],
+                            perf_counter() - g.measurement_started_perf,
+                            ticket_id,
+                            origin,
+                            kind,
+                            len((ticket_data.get('description') or '').split()),
+                        )
+                        if not changed_att:
+                            raise RuntimeError('El intento de medición ya no se encontraba en procesamiento.')
 
             if has_request_context():
                 g.created_ticket_id = ticket_id
-            notify(ticket_id, 'created', f'Nuevo {"pedido" if kind == "request" else "reporte"} #{ticket_id} de {area["name"]}.')
+                if total_ms is not None:
+                    g.measurement_finalized = True
+                    g.measurement_total_ms = total_ms
+
+            if not already_persisted:
+                notify(ticket_id, 'created', f'Nuevo {"pedido" if kind == "request" else "reporte"} #{ticket_id} de {area["name"]}.')
 
             return {
                 "status": "success",
                 "message": "Reporte creado correctamente",
                 "id": ticket_id,
+                "already_persisted": already_persisted,
+                "persisted_in_db": True,
             }
         except Exception as e:
             return {"status": "error", "message": str(e)}
@@ -156,7 +409,13 @@ class TicketController:
                 from utils.permissions import can_see_ticket
                 if not can_see_ticket(ticket):
                     return {'status': 'error', 'message': 'No tienes acceso a este reporte.'}
-            result = {"ticket": ticket, "comments": comments}
+            snapshot, changes = ClassificationTraceService.get_ticket_trace(ticket_id)
+            result = {
+                "ticket": ticket,
+                "comments": comments,
+                "classification_snapshot": snapshot,
+                "classification_changes": changes,
+            }
             return {"status": "success", "data": result}
         except Exception as e:
             return {"status": "error", "message": str(e)}
@@ -198,30 +457,83 @@ class TicketController:
             if not validation['valid']:
                 return {'status':'error','message':validation['errors']}
             ticket = Ticket.get_by_id(ticket_id)
+            previous_request_kind = ticket.request_kind
+            previous_priority = ticket.priority
             ticket.request_kind = ticket_data.get('request_kind', ticket.request_kind)
             if ticket.request_kind not in ('incident','request'):
                 raise ValueError('Tipo de solicitud no válido.')
             ticket.title = ticket_data.get("title", ticket.title)
             ticket.description = ticket_data.get("description", ticket.description)
             ticket.priority = ticket_data.get("priority", ticket.priority)
+
+            classification_changed = (
+                ticket.request_kind != previous_request_kind
+                or ticket.priority != previous_priority
+            )
+            change_reason = (
+                ticket_data.get('classification_change_reason')
+                or ticket_data.get('update_comment')
+                or ''
+            ).strip()
+            if classification_changed and not change_reason:
+                raise ValueError('Registra el motivo del cambio cuando modifiques el tipo o la prioridad del reporte.')
+
             previous_status = ticket.status
             previous_assignee = ticket.assigned_to
             ticket.status = ticket_data.get("status", ticket.status)
-            ticket.resolved_at = datetime.now() if ticket.status in ('resolved', 'closed') else None
+            now = utc_now()
+            ticket.resolved_at = now if ticket.status in ('resolved', 'closed') else None
             ticket.assigned_to = ticket_data.get("assigned_to", ticket.assigned_to)
             ticket.related_asset = ticket_data.get("related_asset", ticket.related_asset)
             ticket.updated_by = ticket_data.get("updated_by")
-            ticket.updated_at = datetime.now()
-
-            ticket.save()
-
-            if previous_status != ticket.status and ticket_data.get('updated_by'):
-                from utils.helpers import translate_ticket_status
-                ticket.add_comment(ticket_data['updated_by'], f"Estado actualizado: {translate_ticket_status(previous_status)} → {translate_ticket_status(ticket.status)}")
+            ticket.updated_at = now
 
             update_comment = ticket_data.get("update_comment")
-            if update_comment:
-                ticket.add_comment(ticket_data.get("updated_by"), update_comment)
+            db = Database()
+            with db.transaction() as tx:
+                ticket.save(tx=tx)
+
+                if classification_changed:
+                    snap_rows = tx.query(
+                        'SELECT id, is_provisional FROM classification_snapshots WHERE ticket_id=%s ORDER BY created_at ASC LIMIT 1',
+                        (ticket_id,),
+                    )
+                    snap = snap_rows[0] if snap_rows else None
+                    editor_participant = ParticipantService.ensure_for_user(ticket_data['updated_by'], tx=tx) if ticket_data.get('updated_by') else None
+                    ClassificationTraceService.record_human_change(
+                        {
+                            'ticket_id': ticket_id,
+                            'snapshot_id': snap['id'] if snap else None,
+                            'changed_by': ticket_data.get('updated_by'),
+                            'participant_id': editor_participant['id'] if editor_participant else None,
+                            'participant_code': editor_participant['code'] if editor_participant else None,
+                            'previous_request_kind': previous_request_kind,
+                            'new_request_kind': ticket.request_kind,
+                            'previous_priority': previous_priority,
+                            'new_priority': ticket.priority,
+                            'change_reason': change_reason,
+                            'was_provisional': snap['is_provisional'] if snap else None,
+                        },
+                        tx=tx,
+                    )
+                    if ticket_data.get('updated_by'):
+                        diffs = []
+                        if previous_request_kind != ticket.request_kind:
+                            diffs.append(f'tipo: {previous_request_kind} → {ticket.request_kind}')
+                        if previous_priority != ticket.priority:
+                            diffs.append(f'prioridad: {previous_priority} → {ticket.priority}')
+                        ticket.add_comment(
+                            ticket_data['updated_by'],
+                            f"Clasificación ajustada por TI ({', '.join(diffs)}). Motivo: {change_reason}",
+                            tx=tx,
+                        )
+
+                if previous_status != ticket.status and ticket_data.get('updated_by'):
+                    from utils.helpers import translate_ticket_status
+                    ticket.add_comment(ticket_data['updated_by'], f"Estado actualizado: {translate_ticket_status(previous_status)} → {translate_ticket_status(ticket.status)}", tx=tx)
+
+                if update_comment:
+                    ticket.add_comment(ticket_data.get("updated_by"), update_comment, tx=tx)
 
             from utils.helpers import translate_ticket_status
             if previous_status != ticket.status:

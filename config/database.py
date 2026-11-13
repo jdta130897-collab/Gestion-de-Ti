@@ -1,10 +1,11 @@
 import mysql.connector
 from mysql.connector import pooling
+from contextlib import contextmanager
 import os
 import re
-from dotenv import load_dotenv
+from utils.environment import load_local_environment
 
-load_dotenv()  # Carga variables de entorno desde .env
+load_local_environment()
 
 class Database:
     """Clase para manejar las conexiones a la base de datos MySQL."""
@@ -41,9 +42,14 @@ class Database:
         """Obtiene una conexión del pool."""
         if self.is_postgres:
             import psycopg
-            return PostgresConnection(psycopg.connect(
+            connection = psycopg.connect(
                 os.environ['DATABASE_URL'], prepare_threshold=None,
-                connect_timeout=15))
+                connect_timeout=15)
+            # Supabase pooler puede ignorar opciones de inicio en la URL. Esta
+            # propiedad impone BEGIN READ ONLY en cada transacción de la vista previa.
+            if os.getenv('DATABASE_READ_ONLY', '').lower() in ('true', '1'):
+                connection.read_only = True
+            return PostgresConnection(connection)
         try:
             return self._pool.get_connection()
         except mysql.connector.Error as err:
@@ -93,11 +99,54 @@ class Database:
             if conn:
                 conn.close()
 
+    @contextmanager
+    def transaction(self):
+        """Ejecuta múltiples consultas/escrituras en una única transacción atómica."""
+        conn = self.get_connection()
+        try:
+            if self.is_postgres:
+                conn.connection.autocommit = False
+            else:
+                conn.autocommit = False
+                if not conn.in_transaction:
+                    conn.start_transaction()
+            yield _Transaction(conn)
+            conn.commit()
+        except Exception:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            raise
+        finally:
+            conn.close()
+
+
+class _Transaction:
+    def __init__(self, conn):
+        self.conn = conn
+
+    def query(self, query, params=None):
+        cursor = self.conn.cursor(dictionary=True)
+        try:
+            cursor.execute(query, params or ())
+            return cursor.fetchall()
+        finally:
+            cursor.close()
+
+    def execute(self, query, params=None, return_id=False):
+        cursor = self.conn.cursor()
+        try:
+            cursor.execute(query, params or ())
+            return cursor.lastrowid if return_id else cursor.rowcount
+        finally:
+            cursor.close()
+
 
 def postgres_sql(query):
     """Compatibilidad acotada para las consultas heredadas de MySQL."""
     query = re.sub(r'UTC_TIMESTAMP\(6\)', "(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')", query, flags=re.I)
-    query = re.sub(r'INTERVAL (%s|\d+) (HOUR|SECOND)\b',
+    query = re.sub(r'INTERVAL (%s|\d+) (HOUR|MINUTE|SECOND)\b',
                    lambda m: "(" + m[1] + " * INTERVAL '1 " + m[2].lower() + "')", query, flags=re.I)
     query = re.sub(r'TIMESTAMPDIFF\(MICROSECOND,\s*started_at,\s*%s\)/1000',
                    'EXTRACT(EPOCH FROM (%s::timestamp - started_at))*1000', query, flags=re.I)

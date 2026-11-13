@@ -5,6 +5,7 @@ import datetime
 from config.settings import SECRET_KEY, API_KEY_EXPIRY_DAYS
 from config.database import Database
 from models.user import User
+from utils.timezone import utc_now
 
 class AuthService:
     """Servicio para autenticación y autorización."""
@@ -31,8 +32,9 @@ class AuthService:
         alphabet = string.ascii_letters + string.digits
         api_key = ''.join(secrets.choice(alphabet) for _ in range(32))
         
-        # Fecha de expiración
-        expiry_date = datetime.datetime.now() + datetime.timedelta(days=API_KEY_EXPIRY_DAYS)
+        # Fecha de expiración en UTC
+        now = utc_now()
+        expiry_date = now + datetime.timedelta(days=API_KEY_EXPIRY_DAYS)
         
         # Almacenar en la base de datos (crear tabla si no existe)
         self._create_api_keys_table_if_not_exists()
@@ -48,14 +50,14 @@ class AuthService:
                 SET api_key = %s, expiry_date = %s, updated_at = %s
                 WHERE user_id = %s
             """
-            params = (api_key, expiry_date, datetime.datetime.now(), user_id)
+            params = (api_key, expiry_date, now, user_id)
         else:
             # Crear nueva API key
             query = """
                 INSERT INTO api_keys (user_id, api_key, expiry_date, created_at, updated_at)
                 VALUES (%s, %s, %s, %s, %s)
             """
-            params = (user_id, api_key, expiry_date, datetime.datetime.now(), datetime.datetime.now())
+            params = (user_id, api_key, expiry_date, now, now)
         
         self.db.execute_update(query, params)
         
@@ -77,7 +79,7 @@ class AuthService:
             SELECT * FROM api_keys 
             WHERE api_key = %s AND expiry_date > %s
         """
-        result = self.db.execute_query(query, (api_key, datetime.datetime.now()))
+        result = self.db.execute_query(query, (api_key, utc_now()))
         
         return bool(result)
     
@@ -97,7 +99,7 @@ class AuthService:
             SELECT user_id FROM api_keys 
             WHERE api_key = %s AND expiry_date > %s
         """
-        result = self.db.execute_query(query, (api_key, datetime.datetime.now()))
+        result = self.db.execute_query(query, (api_key, utc_now()))
         
         if result:
             return result[0]['user_id']
@@ -132,13 +134,14 @@ class AuthService:
             Token JWT generado
         """
         # Configurar carga útil del token
+        now_utc = datetime.datetime.now(datetime.timezone.utc)
         payload = {
             'sub': user_data['id'],
             'name': user_data['name'],
             'email': user_data['email'],
             'role': user_data['role'],
-            'iat': datetime.datetime.utcnow(),
-            'exp': datetime.datetime.utcnow() + datetime.timedelta(seconds=expires_in)
+            'iat': now_utc,
+            'exp': now_utc + datetime.timedelta(seconds=expires_in)
         }
         
         # Generar token JWT

@@ -45,6 +45,27 @@
             </section>
         </div>
         <aside class="report-side-column">
+            {% if classification_snapshot %}
+            <section class="report-section">
+                <h3><span><i class="bi bi-shield-check"></i></span> Trazabilidad inicial de clasificación</h3>
+                <dl class="report-information">
+                    <div><dt>Tipo inicial</dt><dd>{{ 'Pedido' if classification_snapshot.initial_request_kind == 'request' else 'Incidencia' }}</dd></div>
+                    <div><dt>Prioridad inicial</dt><dd>{{ translate_ticket_priority(classification_snapshot.initial_priority) if classification_snapshot.initial_priority else 'No definida' }} ({{ classification_snapshot.classification_status or 'sin estado' }}{% if classification_snapshot.is_provisional %} · provisional{% endif %})</dd></div>
+                    {% if classification_snapshot.initial_impact %}<div><dt>Impacto / Urgencia iniciales</dt><dd>{{ classification_snapshot.initial_impact }} / {{ classification_snapshot.initial_urgency or 'unknown' }}</dd></div>{% endif %}
+                    {% if classification_snapshot.classifier_model %}<div><dt>Modelo / Prompt</dt><dd>{{ classification_snapshot.classifier_model }} · {{ classification_snapshot.prompt_version or '-' }}</dd></div>{% endif %}
+                    <div><dt>Política / Versión / Commit</dt><dd>{{ classification_snapshot.policy_version }} · v{{ classification_snapshot.software_version }}{% if classification_snapshot.build_commit %} · {{ classification_snapshot.build_commit[:12] }}{% if classification_snapshot.commit_dirty %}+dirty{% endif %}{% endif %}</dd></div>
+                    {% if classification_snapshot.participant_code %}<div><dt>Participante / Sesión</dt><dd>{{ classification_snapshot.participant_code }}{% if classification_snapshot.evaluation_session_id %} · {{ classification_snapshot.evaluation_session_id }}{% endif %}</dd></div>{% endif %}
+                </dl>
+                {% if classification_changes %}
+                <p class="small mt-2 mb-1"><strong>Cambios humanos posteriores:</strong></p>
+                <ul class="small mb-0">
+                    {% for ch in classification_changes %}
+                    <li>{{ format_datetime(ch.changed_at, '%d/%m/%Y %H:%M') }} · {{ ch.changed_by_name or 'TI' }}: tipo {{ ch.previous_request_kind }}→{{ ch.new_request_kind }}, prioridad {{ ch.previous_priority }}→{{ ch.new_priority }}. Motivo: {{ ch.change_reason }}</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+            </section>
+            {% endif %}
             <section class="report-section">
                 <h3><span><i class="bi bi-info-circle"></i></span> Información</h3>
                 <dl class="report-information">

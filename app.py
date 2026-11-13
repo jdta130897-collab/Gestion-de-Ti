@@ -1,12 +1,12 @@
+"""
+Aplicación principal del Sistema de Gestión TI.
+Este archivo contiene la configuración y rutas de la aplicación Flask.
+"""
+
 import os
 import sys
-from gtts import gTTS
-from datetime import datetime, date
-from dotenv import load_dotenv
-from utils.release import SOFTWARE_VERSION, BUILD_COMMIT
-load_dotenv()
-if os.getenv('VERCEL') and (not os.getenv('DATABASE_URL') or not os.getenv('SECRET_KEY') or os.getenv('SECRET_KEY') == 'clave_secreta_predeterminada'):
-    raise RuntimeError('Configura DATABASE_URL y una SECRET_KEY privada antes del despliegue.')
+from datetime import datetime, date, timedelta
+from utils.environment import load_local_environment, is_production_environment
 from flask import (
     Flask,
     render_template,
@@ -18,25 +18,30 @@ from flask import (
     jsonify,
 )
 from flask_cors import CORS
+from gtts import gTTS
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask import request, jsonify
-from controllers.ticket_controller import TicketController
+
+load_local_environment()
+if is_production_environment() and (not os.getenv('DATABASE_URL') or not os.getenv('SECRET_KEY') or os.getenv('SECRET_KEY') == 'clave_secreta_predeterminada'):
+    raise RuntimeError('Configura DATABASE_URL y una SECRET_KEY privada antes del despliegue.')
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+if BASE_DIR not in sys.path:
+    sys.path.append(BASE_DIR)
+
 from services.voice_service import VoiceService
+from utils.release import SOFTWARE_VERSION, BUILD_COMMIT
+from utils.timezone import lima_now, to_lima, utc_now
 
 voice_service = VoiceService()
 
 ALLOWED_EXTENSIONS = {'wav', 'mp3', 'webm'}
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+MAX_FILE_SIZE = 4 * 1024 * 1024  # 4 MB (coherente con MAX_CONTENT_LENGTH)
+
 
 def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+    return bool(filename) and '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# Cargar variables de entorno
-load_dotenv()
-
-# Agregar ruta base al path
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(BASE_DIR)
 
 # Cargar utilidades
 from utils.permissions import (
@@ -79,45 +84,6 @@ try:
     from services.auth_service import AuthService
 except ImportError as e:
     print(f"Error al importar módulos: {e}")
-
-
-"""
-Aplicación principal del Sistema de Gestión TI.
-Este archivo contiene la configuración y rutas de la aplicación Flask.
-"""
-
-from flask import (
-    Flask,
-    request,
-    jsonify,
-    render_template,
-    session,
-    redirect,
-    url_for,
-    flash,
-)
-from flask_cors import CORS
-from werkzeug.security import generate_password_hash, check_password_hash
-import os
-import sys
-from dotenv import load_dotenv
-from datetime import datetime, timedelta
-
-# Asegurar que los módulos del proyecto estén en el path
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(BASE_DIR)
-
-# Importar controladores
-try:
-    from controllers.asset_controller import AssetController
-    from controllers.ticket_controller import TicketController
-    from controllers.monitoring_controller import MonitoringController
-    from controllers.user_controller import UserController
-    from services.auth_service import AuthService
-    from config.database import Database
-except ImportError as e:
-    print(f"Error al importar módulos: {e}")
-    # Importaciones mínimas para funcionamiento básico
     Database = None
     AssetController = None
     TicketController = None
@@ -125,14 +91,11 @@ except ImportError as e:
     UserController = None
     AuthService = None
 
-# Cargar variables de entorno
-load_dotenv()
-
 
 # Funciones de utilidad para plantillas
 def time_since(dt):
-    """Calcula el tiempo transcurrido desde una fecha."""
-    now = datetime.now()
+    """Calcula el tiempo transcurrido desde una fecha UTC."""
+    now = utc_now()
     diff = now - dt
 
     seconds = diff.total_seconds()
@@ -152,20 +115,22 @@ def time_since(dt):
         weeks = int(seconds / 604800)
         return f"hace {weeks} {'semana' if weeks == 1 else 'semanas'}"
     else:
-        return dt.strftime("%Y-%m-%d")
+        return to_lima(dt).strftime("%Y-%m-%d")
 
 
 def format_date(date_obj, format_str="%Y-%m-%d"):
-    """Formatea un objeto date o datetime."""
-    if isinstance(date_obj, (datetime, date)):
+    """Formatea un objeto date o datetime UTC en horario de Lima."""
+    if isinstance(date_obj, datetime):
+        return to_lima(date_obj).strftime(format_str)
+    if isinstance(date_obj, date):
         return date_obj.strftime(format_str)
     return str(date_obj) if date_obj else ""
 
 
 def format_datetime(datetime_obj, format_str="%Y-%m-%d %H:%M:%S"):
-    """Formatea un objeto datetime."""
+    """Formatea un objeto datetime UTC en horario local de Lima (UTC-5)."""
     if isinstance(datetime_obj, datetime):
-        return datetime_obj.strftime(format_str)
+        return to_lima(datetime_obj).strftime(format_str)
     return str(datetime_obj) if datetime_obj else ""
 
 
@@ -183,7 +148,7 @@ app = Flask(__name__, template_folder="views/templates", static_folder="views/st
 app.config["MAX_CONTENT_LENGTH"] = 4 * 1024 * 1024
 app.secret_key = os.getenv("SECRET_KEY", "clave_secreta_predeterminada")
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=12)
-app.config.update(SESSION_COOKIE_SECURE=bool(os.getenv('VERCEL')) or os.getenv('SESSION_COOKIE_SECURE','False') == 'True', SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE='Lax')
+app.config.update(SESSION_COOKIE_SECURE=is_production_environment() or os.getenv('SESSION_COOKIE_SECURE','False') == 'True', SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE='Lax')
 from controllers.area_routes import areas_bp
 from services.area_service import AreaService
 from utils.permissions import is_super_admin
@@ -253,10 +218,10 @@ def check_auth():
         from flask import abort
         abort(403, description='Tu área está inactiva. Contacta al superadministrador.')
 
-    # Comprobar tiempo de inactividad
+    # Comprobar tiempo de inactividad (UTC uniforme)
     if "last_activity" in session:
         try:
-            inactive_time = datetime.now() - datetime.fromisoformat(
+            inactive_time = utc_now() - datetime.fromisoformat(
                 session["last_activity"]
             )
             if inactive_time > timedelta(hours=12):
@@ -268,7 +233,7 @@ def check_auth():
             pass
 
     # Actualizar tiempo de última actividad
-    session["last_activity"] = datetime.now().isoformat()
+    session["last_activity"] = utc_now().isoformat()
 
     return None
 
@@ -292,7 +257,7 @@ def login():
         if result.get("status") == "success":
             user = result["user"]
             session.clear()
-            session.update(user_id=user["id"], user_name=user["name"], user_role=user["role"], last_activity=datetime.now().isoformat())
+            session.update(user_id=user["id"], user_name=user["name"], user_role=user["role"], last_activity=utc_now().isoformat())
             return redirect(url_for("dashboard"))
         flash(result.get('message', 'Credenciales incorrectas'), "error")
     return render_template("login.html")
@@ -378,7 +343,7 @@ def dashboard():
                     key=lambda x: (
                         x["created_at"]
                         if isinstance(x["created_at"], datetime)
-                        else datetime.now()
+                        else utc_now()
                     ),
                     reverse=True,
                 )[:5]
@@ -406,7 +371,7 @@ def dashboard():
                     key=lambda x: (
                         x["created_at"]
                         if isinstance(x["created_at"], datetime)
-                        else datetime.now()
+                        else utc_now()
                     ),
                     reverse=True,
                 )[:5]
@@ -451,7 +416,8 @@ def dashboard():
 
         # Verificar conexión a la base de datos
         db_connected = True
-        hour = datetime.now().hour
+        now_lima = lima_now()
+        hour = now_lima.hour
         greeting = "Buenos días" if hour < 12 else "Buenas tardes" if hour < 19 else "Buenas noches"
 
         return render_template(
@@ -460,7 +426,7 @@ def dashboard():
             recent_assets=recent_assets,
             recent_tickets=recent_tickets,
             greeting=greeting,
-            today_label=datetime.now().strftime("%d/%m/%Y"),
+            today_label=now_lima.strftime("%d/%m/%Y"),
             get_status_color=get_status_color,
             get_priority_color=get_priority_color,
             db_connected=db_connected,
@@ -688,68 +654,7 @@ def tickets_page():
     tickets = result["data"]
     tickets = [item for item in tickets if can_see_ticket(item)]
     return render_template("tickets/index.html", tickets=tickets)
-    if "user_id" not in session:
-        return redirect(url_for("login"))
 
-    if TicketController is None:
-        return render_template("not_implemented.html", feature="Gestión de Tickets")
-
-    result = TicketController.get_all_tickets()
-    if result["status"] != "success":
-        flash(result["message"], "error")
-        return redirect(url_for("dashboard"))
-
-    tickets = result["data"]
-    return render_template("tickets/index.html", tickets=tickets)
-    if "user_id" not in session:
-        return redirect(url_for("login"))
-
-    if TicketController is None:
-        return render_template("not_implemented.html", feature="Gestión de Tickets")
-
-    result = TicketController.get_all_tickets()
-    if result["status"] != "success":
-        flash(result["message"], "error")
-        return redirect(url_for("dashboard"))
-
-    tickets = result["data"]
-    return render_template("tickets/index.html", tickets=tickets)
-    if "user_id" not in session:
-        return redirect(url_for("login"))
-
-    if TicketController is None:
-        return render_template("not_implemented.html", feature="Gestión de Tickets")
-
-    result = TicketController.get_all_tickets()
-    if result["status"] != "success":
-        flash(result["message"], "error")
-        return redirect(url_for("dashboard"))
-
-    tickets = result["data"]
-    return render_template("tickets/index.html", tickets=tickets)
-    if "user_id" not in session:
-        return redirect(url_for("login"))
-
-    if TicketController is None:
-        return render_template("not_implemented.html", feature="Gestión de Tickets")
-
-    result = TicketController.get_all_tickets()
-    if result["status"] != "success":
-        flash(result["message"], "error")
-        return redirect(url_for("dashboard"))
-
-    tickets = result["data"]
-    return render_template("tickets/index.html", tickets=tickets)
-    if "user_id" not in session:
-        return redirect(url_for("login"))
-
-    if TicketController is None:
-        return render_template("not_implemented.html", feature="Gestión de Tickets")
-
-    result = TicketController.get_all_tickets()
-    tickets = result["data"] if result["status"] == "success" else []
-
-    return render_template("tickets/index.html", tickets=tickets)
 
 @app.route("/tickets/create", methods=["GET", "POST"])  # Cambiado de /tickets/new a /tickets/create
 @measure_submission('manual')
@@ -773,6 +678,9 @@ def create_ticket():
         ticket_data['origin_area_id'] = request.form.get('origin_area_id', type=int)
         result = TicketController.create_ticket(ticket_data)
         if result["status"] == "success":
+            if result.get("already_persisted"):
+                flash(f"Este reporte ya estaba confirmado en la base de datos (#{result['id']}); no se creó un duplicado.", "info")
+                return redirect(url_for("view_ticket", ticket_id=result["id"]))
             flash("Ticket creado correctamente", "success")
             return redirect(url_for("tickets_page"))
         else:
@@ -782,31 +690,7 @@ def create_ticket():
     priorities = ["low", "medium", "high", "critical"]
     statuses = ["open", "in_progress", "resolved", "closed"]
     return render_template("tickets/create.html", priorities=priorities, statuses=statuses)
-    if "user_id" not in session:
-        return redirect(url_for("login"))
 
-    if TicketController is None:
-        return render_template("not_implemented.html", feature="Gestión de Tickets")
-
-    if request.method == "POST":
-        ticket_data = {
-            "title": request.form.get("subject"),
-            "description": request.form.get("description"),
-            "priority": request.form.get("priority"),
-            "status": "open",
-            "created_by": session.get("user_id"),
-            "initial_comment": request.form.get("initial_comment", "Creado manualmente")
-        }
-        result = TicketController.create_ticket(ticket_data)
-        if result["status"] == "success":
-            flash("Ticket creado correctamente", "success")
-            return redirect(url_for("tickets_page"))
-        else:
-            flash(result["message"], "error")
-
-    # Pasar prioridades para el formulario
-    priorities = ["low", "medium", "high", "critical"]
-    return render_template("tickets/create.html", priorities=priorities)
 
 @app.route("/tickets/<int:ticket_id>", methods=["GET", "POST"])
 def view_ticket(ticket_id):
@@ -821,10 +705,12 @@ def view_ticket(ticket_id):
         flash(result["message"], "error")
         return redirect(url_for("tickets_page"))
 
-    # Extraer el ticket y los comentarios por separado
+    # Extraer el ticket, los comentarios y su trazabilidad inmutable
     ticket_data = result["data"]
     ticket = ticket_data["ticket"]  # Este es el diccionario del ticket real
     comments = ticket_data["comments"]
+    classification_snapshot = ticket_data.get("classification_snapshot")
+    classification_changes = ticket_data.get("classification_changes", [])
     if not can_see_ticket(ticket):
         return deny_access()
 
@@ -846,38 +732,22 @@ def view_ticket(ticket_id):
             return redirect(url_for("view_ticket", ticket_id=ticket_id))
 
     if request.args.get("preview") == "1":
-        return render_template("tickets/preview.html", ticket=ticket, comments=comments, ticket_id=ticket_id)
-    return render_template("tickets/view.html", ticket=ticket, comments=comments, ticket_id=ticket_id)
-    if "user_id" not in session:
-        return redirect(url_for("login"))
-
-    if TicketController is None:
-        return render_template("not_implemented.html", feature="Gestión de Tickets")
-
-    result = TicketController.get_ticket(ticket_id)
-    if result["status"] != "success":
-        flash(result["message"], "error")
-        return redirect(url_for("tickets_page"))
-
-    ticket = result["data"]
-
-    # Agregar comentario si POST
-    if request.method == "POST":
-        comment_text = request.form.get("comment")
-        user_id = session.get("user_id")
-
-        if comment_text and user_id:
-            TicketController.add_comment(
-                ticket_id, {"comment": comment_text, "user_id": user_id}
-            )
-            flash("Comentario agregado correctamente.", "success")
-            return redirect(url_for("view_ticket", ticket_id=ticket_id))
-        else:
-            flash("Debe ingresar un comentario válido.", "error")
-            return redirect(url_for("view_ticket", ticket_id=ticket_id))
-
-    # Agregar return para GET request
-    return render_template("tickets/view.html", ticket=ticket, ticket_id=ticket_id)
+        return render_template(
+            "tickets/preview.html",
+            ticket=ticket,
+            comments=comments,
+            ticket_id=ticket_id,
+            classification_snapshot=classification_snapshot,
+            classification_changes=classification_changes,
+        )
+    return render_template(
+        "tickets/view.html",
+        ticket=ticket,
+        comments=comments,
+        ticket_id=ticket_id,
+        classification_snapshot=classification_snapshot,
+        classification_changes=classification_changes,
+    )
 
 
 @app.route("/tickets/<int:ticket_id>/edit", methods=["GET", "POST"])
@@ -912,6 +782,7 @@ def edit_ticket(ticket_id):
             "description": request.form.get("description"),
             "priority": request.form.get("priority", ticket["priority"]),
             "request_kind": request.form.get("request_kind", ticket["request_kind"]),
+            "classification_change_reason": request.form.get("classification_change_reason"),
             "status": request.form.get("status"),
             "update_comment": request.form.get("update_comment"),
             "updated_by": session.get("user_id")
@@ -935,110 +806,6 @@ def edit_ticket(ticket_id):
     if can_assign_tickets() and UserController:
         assignees = Database().execute_query("SELECT u.id,u.name,u.role FROM users u WHERE u.is_active=TRUE AND u.area_id=%s AND u.role<>'super_admin'", (ticket['destination_area_id'],))
     return render_template("tickets/edit.html", ticket=ticket, comments=comments, ticket_id=ticket_id, priorities=priorities, statuses=statuses, assignees=assignees)
-    if "user_id" not in session:
-        return redirect(url_for("login"))
-
-    if TicketController is None:
-        return render_template("not_implemented.html", feature="Gestión de Tickets")
-
-    result = TicketController.get_ticket(ticket_id)
-    if result["status"] != "success":
-        flash(result["message"], "error")
-        return redirect(url_for("tickets_page"))
-
-    # Extraer el ticket y los comentarios por separado
-    ticket_data = result["data"]
-    ticket = ticket_data["ticket"]
-    comments = ticket_data["comments"]
-
-    if request.method == "POST":
-        ticket_data = {
-            "title": request.form.get("title"),
-            "description": request.form.get("description"),
-            "priority": request.form.get("priority", ticket["priority"]),
-            "request_kind": request.form.get("request_kind", ticket["request_kind"]),
-            "status": request.form.get("status"),
-            "assigned_to": request.form.get("assigned_to") or None,
-            "update_comment": request.form.get("update_comment"),
-            "updated_by": session.get("user_id")
-        }
-        result = TicketController.update_ticket(ticket_id, ticket_data)
-        if result["status"] == "success":
-            flash("Ticket actualizado correctamente", "success")
-        else:
-            flash(result["message"], "error")
-        return redirect(url_for("view_ticket", ticket_id=ticket_id))
-
-    return render_template("tickets/edit.html", ticket=ticket, comments=comments, ticket_id=ticket_id)
-    if "user_id" not in session:
-        return redirect(url_for("login"))
-
-    if TicketController is None:
-        return render_template("not_implemented.html", feature="Gestión de Tickets")
-
-    result = TicketController.get_ticket(ticket_id)
-    if result["status"] != "success":
-        flash(result["message"], "error")
-        return redirect(url_for("tickets_page"))
-
-    ticket = result["data"]
-
-    if request.method == "POST":
-        # Lógica para actualizar el ticket
-        ticket_data = {
-            "title": request.form.get("title"),
-            "description": request.form.get("description"),
-            "priority": request.form.get("priority", ticket["priority"]),
-            "request_kind": request.form.get("request_kind", ticket["request_kind"]),
-            "status": request.form.get("status"),
-            "assigned_to": request.form.get("assigned_to") or None,
-            "update_comment": request.form.get("update_comment"),
-            "updated_by": session.get("user_id")
-        }
-        result = TicketController.update_ticket(ticket_id, ticket_data)
-        if result["status"] == "success":
-            flash("Ticket actualizado correctamente", "success")
-        else:
-            flash(result["message"], "error")
-        return redirect(url_for("view_ticket", ticket_id=ticket_id))
-
-    return render_template("tickets/edit.html", ticket=ticket, ticket_id=ticket_id)
-    if "user_id" not in session:
-        return redirect(url_for("login"))
-
-    if TicketController is None:
-        return render_template("not_implemented.html", feature="Gestión de Tickets")
-
-    result = TicketController.get_ticket(ticket_id)
-    if result["status"] != "success":
-        flash(result["message"], "error")
-        return redirect(url_for("tickets_page"))
-
-    ticket = result["data"]
-
-    if request.method == "POST":
-        ticket_data = {
-            "subject": request.form.get("subject"),
-            "description": request.form.get("description"),
-            "priority": request.form.get("priority", ticket["priority"]),
-            "request_kind": request.form.get("request_kind", ticket["request_kind"]),
-            "status": request.form.get("status"),
-        }
-
-        update_result = TicketController.update_ticket(ticket_id, ticket_data)
-
-        if update_result["status"] == "success":
-            flash("Ticket actualizado correctamente.", "success")
-            return redirect(url_for("view_ticket", ticket_id=ticket_id))
-        else:
-            flash(update_result["message"], "error")
-
-    priorities = ["low", "medium", "high", "critical"]
-    statuses = ["open", "in_progress", "resolved", "closed"]
-
-    return render_template(
-        "tickets/edit.html", ticket=ticket, priorities=priorities, statuses=statuses
-    )
 
 
 @app.route("/tickets/<int:ticket_id>/delete", methods=["POST"])
@@ -1058,37 +825,21 @@ def delete_ticket(ticket_id):
         flash(result["message"], "error")
 
     return redirect(url_for("tickets_page"))
-    if "user_id" not in session:
-        return redirect(url_for("login"))
 
-    if TicketController is None:
-        return render_template("not_implemented.html", feature="Gestión de Tickets")
-
-    result = TicketController.delete_ticket(ticket_id)
-
-    if result["status"] == "success":
-        flash("Ticket eliminado correctamente.", "success")
-    else:
-        flash(result["message"], "error")
-
-    return redirect(url_for("tickets_page"))
 
 @app.route('/api/tickets/audio', methods=['POST'])
 @measure_submission('voice')
 def crear_ticket_audio():
-    if 'audio' not in request.files:
-        return jsonify({"status": "error", "message": "Archivo de audio requerido"}), 400
-    
+    file_stream = request.files.get('audio')
+    if not file_stream or not allowed_file(file_stream.filename):
+        return jsonify({"status": "error", "message": "Archivo de audio permitido requerido"}), 400
+
     user_id = session.get("user_id")
-
     if not user_id:
-        return jsonify({"status": "error", "message": "ID de usuario requerido"}), 400
+        return jsonify({"status": "error", "message": "Autenticación requerida"}), 401
 
-    file_stream = request.files['audio']
     resultado = TicketController.create_ticket_from_audio(file_stream, user_id)
     return jsonify(resultado), 201 if resultado["status"] == "success" else 400
-
-from gtts import gTTS
 
 
 @app.route('/api/tickets/voz', methods=['POST'])
@@ -1100,7 +851,15 @@ def generar_ticket_por_voz():
     result = TicketController.create_ticket_from_audio(audio, session['user_id'])
     if result['status'] != 'success':
         return jsonify(error=result['message']), 400
-    return jsonify(mensaje='Reporte creado correctamente', ticket_id=result['id']), 201
+    return jsonify(
+        mensaje='Reporte creado correctamente',
+        ticket_id=result['id'],
+        classification_status=result.get('classification_status'),
+        priority_source=result.get('priority_source'),
+        has_mixed_requests=result.get('has_mixed_requests', False),
+        request_kind=result.get('request_kind'),
+        priority=result.get('priority'),
+    ), 201
 
 
 @app.route("/chatbot")
@@ -1317,7 +1076,17 @@ def forbidden(e):
 def healthz():
     try:
         Database().execute_query('SELECT 1 AS ready')
-        return jsonify(status='ok', version=SOFTWARE_VERSION, commit=BUILD_COMMIT), 200
+        from utils.release import get_release_metadata
+        meta = get_release_metadata()
+        return jsonify(
+            status='ok',
+            version=meta['version'],
+            commit=meta['commit'],
+            dirty=meta['dirty'],
+            commit_display=meta['commit_display'],
+            policy_version=meta['policy_version'],
+            source_sha256=meta.get('source_sha256'),
+        ), 200
     except Exception:
         return jsonify(status='unavailable'), 503
 
@@ -1347,7 +1116,7 @@ def internal_server_error(e):
 if __name__ == "__main__":
     # Información de inicio
     print(
-        f"Iniciando {os.getenv('APP_NAME', 'Sistema de Gestión TI')} v{os.getenv('APP_VERSION', '1.0.0')}"
+        f"Iniciando {os.getenv('APP_NAME', 'Sistema de Gestión TI')} v{SOFTWARE_VERSION}"
     )
     print(
         f"Servidor: {os.getenv('FLASK_HOST', '127.0.0.1')}:{os.getenv('FLASK_PORT', 5000)}"

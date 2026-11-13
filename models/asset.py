@@ -1,5 +1,5 @@
-from datetime import datetime
 from config.database import Database
+from utils.timezone import utc_now
 
 class BaseModel:
     """Clase base para todos los modelos."""
@@ -96,7 +96,7 @@ class Asset(BaseModel):
             VALUES (%s, %s, %s, %s, %s, %s, %s)
             """
             
-            now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            now = utc_now().strftime('%Y-%m-%d %H:%M:%S')
             
             # Manejar el caso de assigned_to vacío
             assigned_to = asset_data.get('assigned_to')
@@ -138,7 +138,7 @@ class Asset(BaseModel):
             WHERE id = %s
             """
             
-            now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            now = utc_now().strftime('%Y-%m-%d %H:%M:%S')
             
             # Manejar el caso de assigned_to vacío
             assigned_to = asset_data.get('assigned_to')
@@ -244,7 +244,7 @@ class Asset(BaseModel):
                 WHERE id = %s
             """
             params = (self.name, self.type, self.status, self.purchase_date,
-                     self.assigned_to, datetime.now(), self.id)
+                     self.assigned_to, utc_now(), self.id)
             self.db.execute_update(query, params)
             return self.id
         else:

@@ -2,11 +2,11 @@
 import os
 import sys
 from pathlib import Path
-from dotenv import load_dotenv
 
 root = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(root))
-load_dotenv(root / '.env')
+from utils.test_guard import load_test_env
+load_test_env()
 
 
 def migrate():

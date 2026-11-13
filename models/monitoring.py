@@ -1,6 +1,6 @@
-from datetime import datetime
 from config.database import Database
 from models.asset import BaseModel
+from utils.timezone import utc_now
 
 class Monitoring(BaseModel):
     """Modelo para gestionar datos de monitoreo."""
@@ -11,7 +11,7 @@ class Monitoring(BaseModel):
         self.asset_id = asset_id
         self.metric_name = metric_name
         self.metric_value = metric_value
-        self.timestamp = timestamp or datetime.now()
+        self.timestamp = timestamp or utc_now()
     
     def save(self):
         """Guarda un registro de monitoreo en la base de datos."""

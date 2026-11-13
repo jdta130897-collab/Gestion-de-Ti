@@ -16,11 +16,13 @@
             if (!response.ok || response.redirected) return;
             const data = await response.json(); badge.textContent = data.unread; badge.hidden = data.unread===0;
             root.replaceChildren();
+            const scopeNames = {assigned:'Asignado a ti', personal:'Tu solicitud', operational_area:'Área operativa', global:'Global'};
             for (const item of data.items) {
                 const link = document.createElement('a'); link.href = '/tickets/'+item.ticket_id;
                 link.className = 'notification-item'+(item.read ? '' : ' unread');
                 const message = document.createElement('span'); message.textContent = item.message;
-                const time = document.createElement('small'); time.textContent = new Date(item.created_at).toLocaleString('es-PE');
+                const tag = scopeNames[item.scope_category] ? scopeNames[item.scope_category] + ' · ' : '';
+                const time = document.createElement('small'); time.textContent = tag + new Date(item.created_at).toLocaleString('es-PE');
                 link.append(message,time);
                 link.addEventListener('click', () => fetch('/api/notifications/'+item.id+'/read', {method:'POST',keepalive:true}));
                 root.appendChild(link);

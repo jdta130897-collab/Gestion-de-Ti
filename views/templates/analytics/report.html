@@ -1,16 +1,23 @@
 <!doctype html><html lang="es"><head><meta charset="utf-8"><title>Informe de voz frente a registro manual</title>
 <style>body{font:14px/1.6 Arial,sans-serif;color:#1c2440;max-width:1080px;margin:40px auto;padding:0 24px}h1{font-size:28px}h2{margin-top:28px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{padding:9px;border:1px solid #e6eaf2;text-align:left}th{background:#f3f5fb}p.note{color:#667089;font-size:12px}svg{width:100%;height:auto}button{background:#f5c518;border:0;border-radius:8px;padding:12px;font-weight:bold}@media print{button{display:none}body{margin:0;max-width:none}h2,thead{break-after:avoid}tr,svg{break-inside:avoid}svg{max-height:180mm}}</style></head><body>
 <button onclick="window.print()">Imprimir / guardar como PDF</button>
-<h1>Voz frente a registro manual</h1><p>Área de TI · {{ summary.scope }} · Emisión: {{ summary.updated_at }}</p>
+<h1>Voz frente a registro manual</h1>
+<p>Área de TI · Alcance activo: <strong>{{ summary.scope }}</strong> · Emisión UTC: {{ summary.updated_at }}</p>
 <p class="note">{{ summary.methodology }}</p>
-<h2>Indicadores cuantitativos</h2>
+{% if summary.scope_comparison %}
+<p class="note"><strong>Alcance personal frente a alcance activo:</strong> Tus datos propios suman {{ summary.scope_comparison.personal.tickets_total }} tickets creados y {{ summary.scope_comparison.personal.measured_success }}/{{ summary.scope_comparison.personal.attempts_total }} intentos exitosos. El alcance activo muestra {{ summary.scope_comparison.active.tickets_total }} tickets y {{ summary.scope_comparison.active.measured_success }}/{{ summary.scope_comparison.active.attempts_total }} intentos exitosos.</p>
+{% endif %}
+<h2>1. Métricas experimentales de creación (Voz vs. Manual)</h2>
 <table><thead><tr><th>Indicador</th><th>Voz</th><th>Manual</th></tr></thead><tbody>
-{% for label,field in [('Intentos','attempts'),('Exitosos medidos','success'),('Fallidos','failed'),('Abandonados','abandoned'),('Pendientes','pending'),('Tasa de éxito (%)','success_rate'),('Promedio (s)','mean_s'),('Mediana (s)','median_s'),('Percentil 90 (s)','p90_s'),('Desviación estándar (s)','std_s'),('Mínimo (s)','min_s'),('Máximo (s)','max_s'),('Preparación (s)','preparation_s'),('Procesamiento (s)','processing_s')] %}
+{% for label,field in [('Intentos totales','attempts'),('Exitosos medidos (tiempos)','success'),('Fallidos','failed'),('Fallidos por timeout procesamiento (>10 min)','stale_processing_failed'),('Abandonados','abandoned'),('Pendientes activos','pending'),('Tasa de éxito (%)','success_rate'),('Tasa de finalización (%)','completion_rate'),('Preparación incl. pausas (s)','preparation_s'),('Pausas cliente (s)','paused_s'),('Procesamiento servidor (s)','processing_s'),('Total servidor promedio (s)','mean_s'),('Mediana servidor (s)','median_s'),('Percentil 90 servidor (s)','p90_s'),('Desviación estándar servidor (s)','std_s'),('Mínimo servidor (s)','min_s'),('Máximo servidor (s)','max_s'),('Confirmados visualmente en navegador','browser_confirmed'),('Total percibido en navegador (s)','browser_mean_s')] %}
 <tr><td>{{ label }}</td>{% for channel in ['voice','manual'] %}<td>{{ '%.2f'|format(summary.channels[channel][field]) if summary.channels[channel][field] is not none else 'Sin datos' }}</td>{% endfor %}</tr>{% endfor %}
 </tbody></table>
-<p>Reducción del tiempo promedio de voz frente a manual: <strong>{{ '%.2f %%'|format(summary.reduction_pct) if summary.reduction_pct is not none else 'Sin comparación disponible' }}</strong>. Un valor negativo indica que la voz tomó más tiempo.</p>
-<p class="note">{{ summary.sample_note }} Reportes sin medición dentro del período: {{ summary.unmeasured }}. No se les asignaron tiempos estimados.</p>
+<p>Reducción del tiempo promedio en servidor de voz frente a manual: <strong>{{ '%.2f %%'|format(summary.reduction_pct) if summary.reduction_pct is not none else 'Sin comparación disponible' }}</strong>. Un valor negativo indica que la voz tomó más tiempo.</p>
+<h2>2. Métricas operativas de tickets</h2>
+<p class="note">Total visibles en alcance y período: <strong>{{ summary.tickets_total }}</strong> ({{ summary.operational.measured_tickets }} con medición experimental; {{ summary.unmeasured }} sin medición, sin tiempos estimados). Creados por ti: {{ summary.operational.created_by_me }} · Asignados a ti: {{ summary.operational.assigned_to_me }} · Sin asignar activos: {{ summary.operational.unassigned_open }}.</p>
+<p class="note">{{ summary.sample_note }}</p>
 {% for title,svg in charts %}<h2>{{ title }}</h2>{{ svg|safe }}{% endfor %}
-<h2>Registro de mediciones</h2><table><thead><tr><th>Reporte</th><th>Área</th><th>Canal</th><th>Resultado</th><th>Fecha UTC</th><th>Total (s)</th></tr></thead><tbody>
-{% for row in rows %}<tr><td>{{ row.ticket_id or '—' }}</td><td>{{ row.area_name }}</td><td>{{ 'Voz' if row.channel=='voice' else 'Manual' }}</td><td>{{ {'started':'Iniciado','processing':'Procesando','success':'Exitoso','failed':'Fallido','abandoned':'Abandonado'}[row.outcome] }}</td><td>{{ row.started_at }}</td><td>{{ '%.2f'|format(row.total_ms/1000) if row.total_ms is not none else 'Sin medición' }}</td></tr>{% else %}<tr><td colspan="6">No hay mediciones en este período.</td></tr>{% endfor %}</tbody></table>
+<h2>3. Registro de mediciones</h2>
+<table><thead><tr><th>Reporte</th><th>Área</th><th>Canal</th><th>Resultado</th><th>Motivo</th><th>Inicio UTC</th><th>Total servidor (s)</th><th>Total navegador (s)</th></tr></thead><tbody>
+{% for row in rows %}<tr><td>{{ row.ticket_id or '—' }}</td><td>{{ row.area_name }}</td><td>{{ 'Voz' if row.channel=='voice' else 'Manual' }}</td><td>{{ {'started':'Iniciado','processing':'Procesando','success':'Exitoso','failed':'Fallido','abandoned':'Abandonado'}[row.outcome] }}</td><td>{{ row.outcome_reason or '—' }}</td><td>{{ row.started_at }}</td><td>{{ '%.2f'|format(row.total_ms/1000) if row.total_ms is not none else 'Sin medición' }}</td><td>{{ '%.2f'|format(row.browser_total_ms/1000) if row.browser_total_ms is not none else '—' }}</td></tr>{% else %}<tr><td colspan="8">No hay mediciones en este período.</td></tr>{% endfor %}</tbody></table>
 </body></html>

@@ -1,6 +1,7 @@
 from datetime import datetime
 from config.database import Database
 from models.asset import BaseModel
+from utils.timezone import lima_day_bounds_to_utc, utc_now
 
 class Ticket(BaseModel):
     """Modelo para gestionar tickets de soporte."""
@@ -8,7 +9,8 @@ class Ticket(BaseModel):
 
     def __init__(self, title, description, status, priority, created_by,
                  assigned_to=None, related_asset=None, id=None, resolved_at=None,
-                 origin_area_id=None, destination_area_id=None, request_kind='incident', channel='manual'):
+                 origin_area_id=None, destination_area_id=None, request_kind='incident',
+                 channel='manual', attempt_id=None, evaluation_session_id=None):
         self.id = id
         self.title = title
         self.description = description
@@ -19,14 +21,18 @@ class Ticket(BaseModel):
         self.destination_area_id = destination_area_id
         self.request_kind = request_kind
         self.channel = channel
+        self.attempt_id = attempt_id
+        self.evaluation_session_id = evaluation_session_id
         self.assigned_to = assigned_to
         self.related_asset = related_asset
         self.resolved_at = resolved_at
-        self.created_at = datetime.now()
-        self.updated_at = datetime.now()
+        now = utc_now()
+        self.created_at = now
+        self.updated_at = now
 
-    def save(self):
+    def save(self, tx=None):
         """Guarda o actualiza un ticket en la base de datos."""
+        exec_fn = tx.execute if tx is not None else self.db.execute_update
         if self.id:
             # Actualiza un ticket existente
             query = """
@@ -36,23 +42,24 @@ class Ticket(BaseModel):
                 WHERE id = %s
             """
             params = (self.title, self.description, self.status, self.priority, self.request_kind,
-                     self.assigned_to, self.related_asset, datetime.now(),
+                     self.assigned_to, self.related_asset, utc_now(),
                      self.resolved_at, self.id)
-            self.db.execute_update(query, params)
+            exec_fn(query, params)
             return self.id
         else:
             # Crea un nuevo ticket
             query = """
                 INSERT INTO tickets (title, description, status, priority, created_by,
                                     assigned_to, related_asset, created_at, updated_at,
-                                    origin_area_id, destination_area_id, request_kind, channel)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                    origin_area_id, destination_area_id, request_kind, channel,
+                                    attempt_id, evaluation_session_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
             params = (self.title, self.description, self.status, self.priority,
                      self.created_by, self.assigned_to, self.related_asset,
                      self.created_at, self.updated_at, self.origin_area_id, self.destination_area_id,
-                     self.request_kind, self.channel)
-            self.id = self.db.execute_update(query, params, return_id=True)
+                     self.request_kind, self.channel, self.attempt_id, self.evaluation_session_id)
+            self.id = exec_fn(query, params, return_id=True)
             return self.id
 
     @classmethod
@@ -148,10 +155,16 @@ class Ticket(BaseModel):
         conditions = []
         params = []
 
-        # Filtro por fecha (comparar solo la fecha, ignorando la hora)
+        # Filtro por fecha calendario en Lima (UTC-5) convertido a rango UTC
         if date_filter:
-            conditions.append("DATE(t.created_at) = %s")
-            params.append(date_filter)
+            try:
+                parsed_date = datetime.strptime(str(date_filter), "%Y-%m-%d")
+                utc_start, utc_end = lima_day_bounds_to_utc(parsed_date, parsed_date)
+                conditions.append("t.created_at >= %s AND t.created_at < %s")
+                params.extend([utc_start, utc_end])
+            except ValueError:
+                conditions.append("DATE(t.created_at) = %s")
+                params.append(date_filter)
 
         # Filtro por prioridad
         if priority_filter:
@@ -182,7 +195,7 @@ class Ticket(BaseModel):
 
         return cls.db.execute_query(query, params)
 
-    def add_comment(self, user_id, comment_text):
+    def add_comment(self, user_id, comment_text, tx=None):
         """Añade un comentario a un ticket."""
         if not self.id:
             raise ValueError("El ticket debe guardarse primero antes de añadir comentarios")
@@ -191,8 +204,11 @@ class Ticket(BaseModel):
             INSERT INTO ticket_comments (ticket_id, user_id, comment, created_at)
             VALUES (%s, %s, %s, %s)
         """
-        params = (self.id, user_id, comment_text, datetime.now())
-        self.db.execute_update(query, params)
+        params = (self.id, user_id, comment_text, utc_now())
+        if tx is not None:
+            tx.execute(query, params)
+        else:
+            self.db.execute_update(query, params)
 
     @classmethod
     def get_comments(cls, ticket_id):

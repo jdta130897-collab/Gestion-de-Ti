@@ -3,6 +3,7 @@ import string
 import re
 import os
 from datetime import datetime, timedelta
+from utils.timezone import utc_now, lima_now, to_lima
 
 
 def generate_random_string(length=10):
@@ -30,8 +31,8 @@ def format_date(date, format_str="%d/%m/%Y"):
     return ""
 
 
-def format_datetime(dt, format_str="%d/%m/%Y %H:%M"):
-    """Formatea una fecha y hora en un formato específico."""
+def format_datetime(dt, format_str="%d/%m/%Y %H:%M", assume_utc=True):
+    """Formatea una fecha y hora UTC convirtiéndola por defecto a horario de Lima (UTC-5)."""
     if isinstance(dt, str):
         try:
             dt = datetime.strptime(dt, "%Y-%m-%d %H:%M:%S")
@@ -39,7 +40,8 @@ def format_datetime(dt, format_str="%d/%m/%Y %H:%M"):
             return dt
 
     if dt:
-        return dt.strftime(format_str)
+        display_dt = to_lima(dt) if assume_utc else dt
+        return display_dt.strftime(format_str)
     return ""
 
 
@@ -100,8 +102,8 @@ def get_asset_badge_color(asset_status):
 
 
 def time_since(dt):
-    """Calcula el tiempo transcurrido desde una fecha."""
-    now = datetime.now()
+    """Calcula el tiempo transcurrido desde una fecha UTC."""
+    now = utc_now()
     diff = now - dt
 
     seconds = diff.total_seconds()
@@ -157,8 +159,8 @@ def calculate_metrics_stats(metrics):
 
 
 def get_date_range(range_type):
-    """Obtiene rango de fechas según tipo (día, semana, mes, año)."""
-    now = datetime.now()
+    """Obtiene rango de fechas en Lima según tipo (día, semana, mes, año)."""
+    now = lima_now()
 
     if range_type == "day":
         start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)

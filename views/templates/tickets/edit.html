@@ -34,7 +34,15 @@
     <select name="request_kind" class="form-select" {% if ticket.assigned_to or ticket.classification_locked %}disabled{% endif %}>
     <option value="incident" {% if ticket.request_kind == 'incident' %}selected{% endif %}>Incidencia</option>
     <option value="request" {% if ticket.request_kind == 'request' %}selected{% endif %}>Pedido</option></select></div>
-    {% if ticket.assigned_to or ticket.classification_locked %}<p>La prioridad y el tipo están bloqueados desde la primera asignación.</p>{% endif %}
+    {% if ticket.assigned_to or ticket.classification_locked %}
+    <p class="small text-muted">La prioridad y el tipo están bloqueados desde la primera asignación.</p>
+    {% else %}
+    <p class="small text-muted">Antes de la primera asignación, el encargado de TI puede corregir el tipo o ajustar una prioridad media provisional asignada por información incompleta según la matriz Impacto × Urgencia.</p>
+    <div class="mb-3">
+        <label for="classification_change_reason" class="form-label">Motivo del cambio de tipo o prioridad</label>
+        <input type="text" id="classification_change_reason" name="classification_change_reason" class="form-control" placeholder="Obligatorio si modificas el tipo o la prioridad (o detállalo abajo en Respuesta de TI)">
+    </div>
+    {% endif %}
     {% if can_assign_tickets %}
     <div class="mb-3">
         <label for="assigned_to" class="form-label">Asignar a</label>

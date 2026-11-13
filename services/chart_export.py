@@ -4,21 +4,21 @@ from xml.sax.saxutils import escape
 def chart_data(summary, chart):
     c = summary['channels']
     if chart == 'time':
-        return 'Tiempo de creación por canal', 'Segundos', ['Voz', 'Manual'], [
+        return 'Tiempo total en servidor por canal', 'Segundos', ['Voz', 'Manual'], [
             ('Promedio', [c[k]['mean_s'] for k in ('voice','manual')]),
             ('Mediana', [c[k]['median_s'] for k in ('voice','manual')]),
             ('Percentil 90', [c[k]['p90_s'] for k in ('voice','manual')])]
     if chart == 'volume':
         return 'Resultados de los intentos', 'Intentos', ['Voz','Manual'], [(label,[c[k][field] for k in ('voice','manual')]) for label,field in [('Exitosos','success'),('Fallidos','failed'),('Abandonados','abandoned'),('Pendientes','pending')]]
     if chart == 'success':
-        return 'Tasa de éxito por canal', 'Porcentaje', ['Voz','Manual'], [('Éxito',[c[k]['success_rate'] for k in ('voice','manual')])]
+        return 'Tasa de éxito (éxitos / [éxitos+fallos])', 'Porcentaje', ['Voz','Manual'], [('Éxito',[c[k]['success_rate'] for k in ('voice','manual')])]
     if chart == 'phases':
-        return 'Preparación frente a procesamiento', 'Segundos', ['Voz','Manual'], [(label,[c[k][field] for k in ('voice','manual')]) for label,field in [('Preparación / grabación','preparation_s'),('Procesamiento y guardado','processing_s')]]
+        return 'Preparación frente a procesamiento en servidor', 'Segundos', ['Voz','Manual'], [(label,[c[k][field] for k in ('voice','manual')]) for label,field in [('Preparación / grabación','preparation_s'),('Procesamiento y guardado','processing_s')]]
     if chart == 'trend':
-        return 'Solicitudes medidas por día', 'Exitosos', [r['day'] for r in summary['daily']], [(label,[r[k] for r in summary['daily']]) for label,k in [('Voz','voice'),('Manual','manual')]]
+        return 'Solicitudes medidas por día (Lima UTC-5)', 'Exitosos', [r['day'] for r in summary['daily']], [(label,[r[k] for r in summary['daily']]) for label,k in [('Voz','voice'),('Manual','manual')]]
     if chart == 'priority':
-        return 'Prioridad de las solicitudes', 'Solicitudes', ['Baja','Media','Alta','Crítica'], [('Cantidad',[summary['priority'][k] for k in ('low','medium','high','critical')])]
-    return 'Estado de las solicitudes', 'Solicitudes', ['Abiertos','En progreso','Resueltos','Cerrados'], [('Cantidad',[summary['status'][k] for k in ('open','in_progress','resolved','closed')])]
+        return 'Prioridad de las solicitudes (operativa)', 'Solicitudes', ['Baja','Media','Alta','Crítica'], [('Cantidad',[summary['priority'][k] for k in ('low','medium','high','critical')])]
+    return 'Estado de las solicitudes (operativa)', 'Solicitudes', ['Abiertos','En progreso','Resueltos','Cerrados'], [('Cantidad',[summary['status'][k] for k in ('open','in_progress','resolved','closed')])]
 
 
 def make_svg(summary, chart):

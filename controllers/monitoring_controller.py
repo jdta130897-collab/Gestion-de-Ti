@@ -2,6 +2,7 @@ from models.monitoring import Monitoring
 from models.asset import Asset
 from services.ai_service import AIService
 from datetime import datetime, timedelta
+from utils.timezone import utc_now
 
 class MonitoringController:
     """Controlador para gestionar monitoreo de activos."""
@@ -118,7 +119,7 @@ class MonitoringController:
                 asset_id=monitoring_data.get("asset_id"),
                 metric_name=monitoring_data.get("metric_name"),
                 metric_value=float(monitoring_data.get("metric_value")),
-                timestamp=monitoring_data.get("timestamp", datetime.now())
+                timestamp=monitoring_data.get("timestamp", utc_now())
             )
             
             monitoring_id = monitoring.save()
@@ -153,7 +154,7 @@ class MonitoringController:
         try:
             # Configurar fechas por defecto si no se proporcionan
             if not end_date:
-                end_date = datetime.now()
+                end_date = utc_now()
             if not start_date:
                 start_date = end_date - timedelta(days=30)  # Por defecto, último mes
             

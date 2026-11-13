@@ -1,7 +1,7 @@
 import os
-from dotenv import load_dotenv
+from utils.environment import load_local_environment
 
-load_dotenv()
+load_local_environment()
 
 # Configuración de la aplicación
 APP_NAME = "Sistema de Gestión TI"

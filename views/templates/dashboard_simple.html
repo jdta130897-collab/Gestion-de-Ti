@@ -50,9 +50,9 @@
     </article>
     {% else %}
     <article class="kpi sky">
-        <p class="label">Tus reportes</p>
+        <p class="label">{% if can_work_tickets %}Reportes en tu cola TI{% else %}Tus reportes{% endif %}</p>
         <strong data-live-ticket="total">{{ total_tickets }}</strong>
-        <small>Reportes creados por ti</small>
+        <small>{% if can_work_tickets %}Creados por ti y asignados a ti{% else %}Reportes creados por ti{% endif %}</small>
     </article>
     <article class="kpi sand">
         <p class="label">Resueltos</p>
